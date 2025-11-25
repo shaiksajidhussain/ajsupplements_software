@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Login - IMT Feed Formulation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { 
+      --bg: #0b1220; 
+      --panel: #121a2b; 
+      --muted: #9fb3c8; 
+      --text: #e8f0fb; 
+      --accent: #59a9ff; 
+      --accent2: #7bd389; 
+      --border: #22304b; 
+      --bad: #ff6b6b; 
+    }
+    html, body {
+      margin: 0; 
+      padding: 0; 
+
+      color: var(--text); 
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: url('https://img.freepik.com/free-photo/photorealistic-scene-poultry-farm-with-chickens_23-2151500803.jpg?t=st=1764017263~exp=1764020863~hmac=91fda40a2e8f7f4bf5d3f613bc91284f208c20bd644062598f2986b536ff349e&w=2000');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      z-index: -2;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.75);
+      z-index: -1;
+    }
+    .login-container {
+      width: 100%;
+      max-width: 400px;
+      padding: 20px;
+      position: relative;
+      z-index: 1;
+    }
+    .login-card {
+      background: rgba(18, 26, 43, 0.3);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 32px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin: 0 0 8px;
+      text-align: center;
+      color: var(--accent);
+    }
+    .subtitle {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 24px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(5px);
+      color: var(--text);
+      outline: none;
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+    input[type="text"]:focus,
+    input[type="password"]:focus {
+      border-color: var(--accent);
+      background: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 0 0 3px rgba(89, 169, 255, 0.2);
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      background: linear-gradient(180deg, var(--accent), #2e6fd1);
+      color: white;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: filter 0.2s;
+    }
+    button:hover {
+      filter: brightness(1.1);
+    }
+    button:active {
+      filter: brightness(0.95);
+    }
+    .messages {
+      margin-bottom: 20px;
+    }
+    .message {
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      font-size: 0.9rem;
+    }
+    .message.error {
+      background: #271317;
+      border: 1px solid #7a2f3a;
+      color: #ffb0b9;
+    }
+    .message.success {
+      background: #0f213c;
+      border: 1px solid #214d33;
+      color: #9ee2a8;
+    }
+    .footer-text {
+      text-align: center;
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <h1>IMT Feed Formulation</h1>
+      <p class="subtitle">Please login to continue</p>
+
+      {% if messages %}
+        <div class="messages">
+          {% for message in messages %}
+            <div class="message {{ message.tags }}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <form method="post" action="{% url 'login' %}">
+        {% csrf_token %}
+        
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input 
+            type="text" 
+            id="username" 
+            name="username" 
+            required 
+            autofocus
+            placeholder="Enter your username"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input 
+            type="password" 
+            id="password" 
+            name="password" 
+            required
+            placeholder="Enter your password"
+          />
+        </div>
+
+        <button type="submit">Login</button>
+      </form>
+
+      <!-- <p class="footer-text">Default: admin / admin123</p> -->
+    </div>
+  </div>
+</body>
+</html>
+
+  
