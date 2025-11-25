@@ -27,6 +27,13 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['147.93.98.35', 'localhost', '127.0.0.1', 'be.ajsupplements.com']
 
+# CSRF trusted origins for HTTPS
+CSRF_TRUSTED_ORIGINS = [
+    'https://be.ajsupplements.com',
+    'http://localhost',
+    'http://127.0.0.1',
+    'http://147.93.98.35',
+]
 
 # Application definition
 
