@@ -37,6 +37,10 @@
     .notes {display:flex; flex-direction:column; gap:6px;}
     .note {background:#0f213c; border:1px solid var(--border); padding:8px 10px; border-radius:8px; font-size:.9rem; color:#d5e6ff;}
     .total-line {display:flex; justify-content:flex-end; gap:12px; margin-top:8px; color:var(--muted); font-size:.95rem;}
+    .modal {position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:1000;}
+    .modal-content {background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:24px; min-width:300px; max-width:400px;}
+    .modal-btn {width:100%; padding:12px; border-radius:8px; border:none; background:linear-gradient(180deg, var(--accent), #2e6fd1); color:var(--text); font-weight:600; cursor:pointer; margin:0;}
+    .modal-btn:hover {filter:brightness(1.1);}
   </style>
 </head>
 <body>
@@ -262,6 +266,24 @@
         </table>
       </div>
     </div>
+    
+    <!-- Download button -->
+    <div style="margin-top: 16px; text-align: center;">
+      <button id="btn-download" type="button" style="width: auto; padding: 10px 24px;">Download</button>
+    </div>
+  </div>
+</div>
+
+<!-- Download Modal -->
+<div id="download-modal" class="modal hidden">
+  <div class="modal-content">
+    <h3 style="margin-top: 0;">Select Download Option</h3>
+    <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px;">
+      <button class="modal-btn" data-option="mixture">Mixture Only</button>
+      <button class="modal-btn" data-option="nutrients">Nutrients Only</button>
+      <button class="modal-btn" data-option="both">Both</button>
+      <button class="modal-btn" data-option="cancel" style="background: var(--muted);">Cancel</button>
+    </div>
   </div>
 </div>
 
@@ -407,6 +429,9 @@
         throw new Error(data.message || 'Failed to compute.');
       }
 
+      // Store data for download
+      currentData = data;
+
       // ---- Render notes (if any)
       if (Array.isArray(data.notes) && data.notes.length) {
         notesWrap.classList.remove('hidden');
@@ -480,10 +505,130 @@
     } catch (err) {
       errBox.textContent = err.message || String(err);
       errBox.classList.remove('hidden');
+      currentData = null;
     } finally {
       btn.disabled = false; btn.textContent = 'Calculate';
     }
   });
+
+  // --- Download functionality ---
+  const btnDownload = document.getElementById('btn-download');
+  const downloadModal = document.getElementById('download-modal');
+  let currentData = null; // Store the latest result data
+
+  // Download button click handler
+  btnDownload.addEventListener('click', () => {
+    if (!currentData) {
+      alert('No data available to download. Please calculate first.');
+      return;
+    }
+    downloadModal.classList.remove('hidden');
+  });
+
+  // Modal button handlers
+  document.querySelectorAll('.modal-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const option = e.target.dataset.option;
+      downloadModal.classList.add('hidden');
+      
+      if (option === 'cancel') return;
+      
+      downloadData(option);
+    });
+  });
+
+  // Close modal when clicking outside
+  downloadModal.addEventListener('click', (e) => {
+    if (e.target === downloadModal) {
+      downloadModal.classList.add('hidden');
+    }
+  });
+
+  // Download data function
+  function downloadData(option) {
+    if (!currentData) return;
+
+    const rows = (currentData.final_formula && currentData.final_formula.rows) ? currentData.final_formula.rows : [];
+    const achieved = (currentData.final_formula && currentData.final_formula.nutrients_achieved) ? currentData.final_formula.nutrients_achieved : {};
+    const targets = (currentData.final_formula && currentData.final_formula.targets) ? currentData.final_formula.targets : {};
+
+    let csvContent = '';
+    let filename = '';
+
+    if (option === 'mixture' || option === 'both') {
+      csvContent += 'Mixture\n';
+      csvContent += 'Ingredient,Category,%\n';
+      
+      // Add premix if present
+      if (currentData.premix && typeof currentData.premix.inclusion_rate_percent === 'number') {
+        const p = currentData.premix.inclusion_rate_percent || 0;
+        if (p > 0) {
+          csvContent += `"${currentData.premix.name} (Premix)",premix,${p.toFixed(4)}\n`;
+        }
+      }
+
+      rows.forEach(r => {
+        csvContent += `"${r.name}",${r.category},${Number(r.percent || 0).toFixed(4)}\n`;
+      });
+
+      let totalPct = 0;
+      if (currentData.premix && typeof currentData.premix.inclusion_rate_percent === 'number') {
+        totalPct += currentData.premix.inclusion_rate_percent || 0;
+      }
+      rows.forEach(r => {
+        totalPct += Number(r.percent || 0);
+      });
+      csvContent += `Total,,${totalPct.toFixed(4)}\n`;
+      
+      filename = 'mixture.csv';
+    }
+
+    if (option === 'nutrients' || option === 'both') {
+      if (option === 'both') {
+        csvContent += '\n\n';
+      }
+      csvContent += 'Nutrients\n';
+      csvContent += 'Nutrient,Achieved,Target,Status\n';
+
+      const map = [
+        ['Energy (kcal/kg)', achieved.ME_kcal_per_kg, targets.ME_min, '>='],
+        ['Crude Protein (%)', achieved.CP_percent, targets.CP_min, '>='],
+        ['Calcium (%)', achieved.Ca_percent, targets.Ca_min, '>='],
+        ['Phosphorus (%)', achieved.P_percent, targets.P_min, '>='],
+        ['Lysine (%)', achieved.Lys_percent, targets.Lys_min, '>='],
+        ['Methionine (%)', achieved.Met_percent, targets.Met_min, '>='],
+        ['Salt (%)', achieved.NaCl_percent, targets.NaCl_min, '>='],
+      ];
+
+      map.forEach(([label, a, t, rule]) => {
+        const displayedAchieved = (typeof a === 'number' && typeof t === 'number' && a > t) ? t : (a ?? 0);
+        const ok = (typeof displayedAchieved === 'number' && typeof t === 'number')
+          ? (rule === '>=' ? displayedAchieved + 1e-9 >= t : displayedAchieved <= t)
+          : false;
+        const status = ok ? 'OK' : 'Check';
+        const achievedVal = displayedAchieved.toFixed(label.includes('kcal') ? 2 : 4);
+        const targetVal = (t ?? 0).toFixed(label.includes('kcal') ? 2 : 4);
+        csvContent += `"${label}",${achievedVal},${targetVal},${status}\n`;
+      });
+
+      if (option === 'nutrients') {
+        filename = 'nutrients.csv';
+      } else {
+        filename = 'mixture_and_nutrients.csv';
+      }
+    }
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 
   // Initialize on load
   window.addEventListener('DOMContentLoaded', () => {
