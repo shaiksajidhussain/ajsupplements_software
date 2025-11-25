@@ -461,13 +461,16 @@
       ];
 
       map.forEach(([label, a, t, rule]) => {
-        const ok = (typeof a === 'number' && typeof t === 'number')
-          ? (rule === '>=' ? a + 1e-9 >= t : a <= t)
+        // Cap achieved value at target if it exceeds target
+        const displayedAchieved = (typeof a === 'number' && typeof t === 'number' && a > t) ? t : (a ?? 0);
+        
+        const ok = (typeof displayedAchieved === 'number' && typeof t === 'number')
+          ? (rule === '>=' ? displayedAchieved + 1e-9 >= t : displayedAchieved <= t)
           : false;
 
         const tr = document.createElement('tr');
         const td1 = document.createElement('td'); td1.textContent = label;
-        const td2 = document.createElement('td'); td2.style.textAlign='right'; td2.textContent = (a ?? 0).toFixed(label.includes('kcal') ? 2 : 4);
+        const td2 = document.createElement('td'); td2.style.textAlign='right'; td2.textContent = displayedAchieved.toFixed(label.includes('kcal') ? 2 : 4);
         const td3 = document.createElement('td'); td3.style.textAlign='right'; td3.textContent = (t ?? 0).toFixed(label.includes('kcal') ? 2 : 4);
         const td4 = document.createElement('td'); td4.style.textAlign='center'; td4.appendChild(badge(ok));
         tr.append(td1, td2, td3, td4);

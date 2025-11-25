@@ -2,12 +2,32 @@ from __future__ import annotations
 
 from typing import Dict, List, Any
 
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods, require_POST
 from django.contrib import messages
+import json
+import io
+
+# Optional imports for PDF/Excel export
+try:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter, landscape
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    REPORTLAB_AVAILABLE = True
+except ImportError:
+    REPORTLAB_AVAILABLE = False
+
+try:
+    import openpyxl
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    OPENPYXL_AVAILABLE = True
+except ImportError:
+    OPENPYXL_AVAILABLE = False
 
 from .models import (
     Species, Subspecies, AnimalType, Phase,
@@ -858,15 +878,23 @@ def solve_feed_formula(request):
         """
         return sum((id2row[i][k] * sol.get(i, 0.0) / 100.0) for i in sol)
 
+    # Cap achieved values at target values - don't show values exceeding target
+    def capped_achieved(nutrient_key: str, target_key: str) -> float:
+        """Return achieved value capped at target if it exceeds target."""
+        achieved_val = achieved(nutrient_key)
+        target_val = targets.get(target_key, achieved_val)
+        # If achieved exceeds target, cap it at target; otherwise keep achieved
+        return min(achieved_val, target_val) if achieved_val > target_val else achieved_val
+    
     achieved_map = {
-        "ME_kcal_per_kg": round(achieved("ME"), 4),
-        "CP_percent": round(achieved("CP"), 4),
-        "Ca_percent": round(achieved("Ca"), 4),
-        "P_percent": round(achieved("P"), 4),
-        "Lys_percent": round(achieved("Lys"), 4),
-        "Met_percent": round(achieved("Met"), 4),
-        "NaCl_percent": round(achieved("NaCl"), 4),
-        "CF_percent": round(achieved("CF"), 4),
+        "ME_kcal_per_kg": round(capped_achieved("ME", "ME_min"), 4),
+        "CP_percent": round(capped_achieved("CP", "CP_min"), 4),
+        "Ca_percent": round(capped_achieved("Ca", "Ca_min"), 4),
+        "P_percent": round(capped_achieved("P", "P_min"), 4),
+        "Lys_percent": round(capped_achieved("Lys", "Lys_min"), 4),
+        "Met_percent": round(capped_achieved("Met", "Met_min"), 4),
+        "NaCl_percent": round(capped_achieved("NaCl", "NaCl_min"), 4),
+        "CF_percent": round(achieved("CF"), 4),  # CF doesn't have a target to cap against
     }
 
     def name_of(iid):
@@ -967,3 +995,280 @@ def solve_feed_formula(request):
         "ingredient_contributions": ingredient_contrib_rows,
         "mineral_contributions": mineral_contrib_rows,
     }, status=200)
+
+
+@login_required
+@require_http_methods(["GET"])
+def contributions(request):
+    """Display mineral and ingredient contributions page"""
+    return render(request, 'core/contributions.html')
+
+
+@login_required
+@require_http_methods(["GET"])
+def export_contributions_pdf(request):
+    """Export contributions as PDF"""
+    if not REPORTLAB_AVAILABLE:
+        return HttpResponse("PDF export requires reportlab library. Please install it: pip install reportlab==4.0.7", status=500)
+    try:
+        data_str = request.GET.get('data', '{}')
+        data = json.loads(data_str) if data_str else {}
+        
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=landscape(letter), topMargin=0.5*inch)
+        story = []
+        styles = getSampleStyleSheet()
+        
+        # Title
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=18,
+            textColor=colors.HexColor('#1a1a1a'),
+            spaceAfter=20,
+            alignment=1  # Center
+        )
+        story.append(Paragraph("Feed Formulation - Contributions Report", title_style))
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Taxonomy info
+        taxonomy = data.get('taxonomy', {})
+        if taxonomy:
+            info_text = f"Species: {taxonomy.get('species', {}).get('name', 'N/A')} | "
+            info_text += f"Subspecies: {taxonomy.get('subspecies', {}).get('name', 'N/A')} | "
+            info_text += f"Animal Type: {taxonomy.get('animal_type', {}).get('name', 'N/A')} | "
+            info_text += f"Phase: {taxonomy.get('phase', {}).get('name', 'N/A')}"
+            story.append(Paragraph(info_text, styles['Normal']))
+            story.append(Spacer(1, 0.2*inch))
+        
+        # Mineral Contributions Table
+        minerals = data.get('mineral_contributions', [])
+        if minerals:
+            story.append(Paragraph("<b>Mineral Contributions</b>", styles['Heading2']))
+            story.append(Spacer(1, 0.1*inch))
+            
+            mineral_data = [['Mineral', '%', 'Ca (%)', 'P (%)', 'Lys (%)', 'Met (%)', 'Salt (%)']]
+            for m in minerals:
+                mineral_data.append([
+                    m.get('name', ''),
+                    f"{m.get('percent', 0):.4f}",
+                    f"{m.get('Ca', 0):.4f}",
+                    f"{m.get('P', 0):.4f}",
+                    f"{m.get('Lys', 0):.4f}",
+                    f"{m.get('Met', 0):.4f}",
+                    f"{m.get('NaCl', 0):.4f}",
+                ])
+            
+            mineral_table = Table(mineral_data)
+            mineral_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ]))
+            story.append(mineral_table)
+            story.append(Spacer(1, 0.3*inch))
+        
+        # All Ingredient Contributions Table
+        ingredients = data.get('ingredient_contributions', [])
+        if ingredients:
+            story.append(Paragraph("<b>All Ingredient Contributions</b>", styles['Heading2']))
+            story.append(Spacer(1, 0.1*inch))
+            
+            ing_data = [['Ingredient', 'Category', 'Inclusion %', 'ME (kcal/kg)', 'CP (%)', 'Ca (%)', 'P (%)', 'Lys (%)', 'Met (%)', 'Salt (%)', 'CF (%)']]
+            for ing in ingredients:
+                ing_data.append([
+                    ing.get('name', ''),
+                    ing.get('category', ''),
+                    f"{ing.get('percent', 0):.4f}",
+                    f"{ing.get('ME', 0):.2f}",
+                    f"{ing.get('CP', 0):.4f}",
+                    f"{ing.get('Ca', 0):.4f}",
+                    f"{ing.get('P', 0):.4f}",
+                    f"{ing.get('Lys', 0):.4f}",
+                    f"{ing.get('Met', 0):.4f}",
+                    f"{ing.get('NaCl', 0):.4f}",
+                    f"{ing.get('CF', 0):.4f}",
+                ])
+            
+            ing_table = Table(ing_data, colWidths=[1.2*inch]*11)
+            ing_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 8),
+                ('FONTSIZE', (0, 1), (-1, -1), 7),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ]))
+            story.append(ing_table)
+        
+        doc.build(story)
+        buffer.seek(0)
+        
+        response = HttpResponse(buffer.read(), content_type='application/pdf')
+        response['Content-Disposition'] = 'attachment; filename="feed_contributions.pdf"'
+        return response
+        
+    except Exception as e:
+        return HttpResponse(f"Error generating PDF: {str(e)}", status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def export_contributions_excel(request):
+    """Export contributions as Excel"""
+    if not OPENPYXL_AVAILABLE:
+        return HttpResponse("Excel export requires openpyxl library. Please install it: pip install openpyxl==3.1.2", status=500)
+    try:
+        data_str = request.GET.get('data', '{}')
+        data = json.loads(data_str) if data_str else {}
+        
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Contributions"
+        
+        # Header style
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF", size=11)
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        
+        row = 1
+        
+        # Title
+        ws.merge_cells(f'A{row}:K{row}')
+        title_cell = ws[f'A{row}']
+        title_cell.value = "Feed Formulation - Contributions Report"
+        title_cell.font = Font(bold=True, size=14)
+        title_cell.alignment = Alignment(horizontal='center', vertical='center')
+        row += 2
+        
+        # Taxonomy info
+        taxonomy = data.get('taxonomy', {})
+        if taxonomy:
+            ws.merge_cells(f'A{row}:K{row}')
+            info_cell = ws[f'A{row}']
+            info_text = f"Species: {taxonomy.get('species', {}).get('name', 'N/A')} | "
+            info_text += f"Subspecies: {taxonomy.get('subspecies', {}).get('name', 'N/A')} | "
+            info_text += f"Animal Type: {taxonomy.get('animal_type', {}).get('name', 'N/A')} | "
+            info_text += f"Phase: {taxonomy.get('phase', {}).get('name', 'N/A')}"
+            info_cell.value = info_text
+            info_cell.font = Font(size=10)
+            row += 2
+        
+        # Mineral Contributions
+        minerals = data.get('mineral_contributions', [])
+        if minerals:
+            ws[f'A{row}'] = "Mineral Contributions"
+            ws[f'A{row}'].font = Font(bold=True, size=12)
+            row += 1
+            
+            # Headers
+            headers = ['Mineral', '%', 'Ca (%)', 'P (%)', 'Lys (%)', 'Met (%)', 'Salt (%)']
+            for col, header in enumerate(headers, 1):
+                cell = ws.cell(row=row, column=col)
+                cell.value = header
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.border = border
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+            row += 1
+            
+            # Data
+            for m in minerals:
+                ws.cell(row=row, column=1, value=m.get('name', '')).border = border
+                ws.cell(row=row, column=2, value=round(m.get('percent', 0), 4)).border = border
+                ws.cell(row=row, column=3, value=round(m.get('Ca', 0), 4)).border = border
+                ws.cell(row=row, column=4, value=round(m.get('P', 0), 4)).border = border
+                ws.cell(row=row, column=5, value=round(m.get('Lys', 0), 4)).border = border
+                ws.cell(row=row, column=6, value=round(m.get('Met', 0), 4)).border = border
+                ws.cell(row=row, column=7, value=round(m.get('NaCl', 0), 4)).border = border
+                for col in range(1, 8):
+                    ws.cell(row=row, column=col).alignment = Alignment(horizontal='center')
+                row += 1
+            
+            row += 1
+        
+        # All Ingredient Contributions
+        ingredients = data.get('ingredient_contributions', [])
+        if ingredients:
+            ws[f'A{row}'] = "All Ingredient Contributions"
+            ws[f'A{row}'].font = Font(bold=True, size=12)
+            row += 1
+            
+            # Headers
+            headers = ['Ingredient', 'Category', 'Inclusion %', 'ME (kcal/kg)', 'CP (%)', 'Ca (%)', 'P (%)', 'Lys (%)', 'Met (%)', 'Salt (%)', 'CF (%)']
+            for col, header in enumerate(headers, 1):
+                cell = ws.cell(row=row, column=col)
+                cell.value = header
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.border = border
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+            row += 1
+            
+            # Data
+            for ing in ingredients:
+                ws.cell(row=row, column=1, value=ing.get('name', '')).border = border
+                ws.cell(row=row, column=2, value=ing.get('category', '')).border = border
+                ws.cell(row=row, column=3, value=round(ing.get('percent', 0), 4)).border = border
+                ws.cell(row=row, column=4, value=round(ing.get('ME', 0), 2)).border = border
+                ws.cell(row=row, column=5, value=round(ing.get('CP', 0), 4)).border = border
+                ws.cell(row=row, column=6, value=round(ing.get('Ca', 0), 4)).border = border
+                ws.cell(row=row, column=7, value=round(ing.get('P', 0), 4)).border = border
+                ws.cell(row=row, column=8, value=round(ing.get('Lys', 0), 4)).border = border
+                ws.cell(row=row, column=9, value=round(ing.get('Met', 0), 4)).border = border
+                ws.cell(row=row, column=10, value=round(ing.get('NaCl', 0), 4)).border = border
+                ws.cell(row=row, column=11, value=round(ing.get('CF', 0), 4)).border = border
+                for col in range(1, 12):
+                    ws.cell(row=row, column=col).alignment = Alignment(horizontal='center')
+                row += 1
+        
+        # Auto-adjust column widths
+        from openpyxl.utils import get_column_letter
+        from openpyxl.cell.cell import MergedCell
+        
+        for col_idx, column in enumerate(ws.columns, 1):
+            max_length = 0
+            # Skip if first cell is a MergedCell (can't get column_letter from it)
+            first_cell = column[0]
+            if isinstance(first_cell, MergedCell):
+                # Get column letter from index instead
+                column_letter = get_column_letter(col_idx)
+            else:
+                column_letter = first_cell.column_letter
+            
+            for cell in column:
+                # Skip MergedCell objects
+                if isinstance(cell, MergedCell):
+                    continue
+                try:
+                    if cell.value and len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            if max_length > 0:
+                adjusted_width = min(max_length + 2, 30)
+                ws.column_dimensions[column_letter].width = adjusted_width
+        
+        buffer = io.BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        
+        response = HttpResponse(buffer.read(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = 'attachment; filename="feed_contributions.xlsx"'
+        return response
+        
+    except Exception as e:
+        return HttpResponse(f"Error generating Excel: {str(e)}", status=500)

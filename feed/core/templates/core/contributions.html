@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Contributions - IMT Feed Formulation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --bg:#0b1220; --panel:#121a2b; --muted:#9fb3c8; --text:#e8f0fb; --accent:#59a9ff; --accent2:#7bd389; --border:#22304b; --bad:#ff6b6b; }
+    html,body {
+      margin:0; 
+      padding:0; 
+      color:var(--text); 
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans",sans-serif;
+      position: relative;
+      min-height: 100vh;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: url('https://img.freepik.com/free-photo/photorealistic-view-rooster-with-beak-feathers_23-2151569857.jpg?t=st=1764018245~exp=1764021845~hmac=cf30f0f38e98eabfac57f7432c4adef0b1396e5c72c5ed16e05d0a163d9bb4df&w=2000');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      z-index: -2;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.75);
+      z-index: -1;
+    }
+    .wrap {
+      max-width:1400px; 
+      margin:32px auto; 
+      padding:0 16px;
+      position: relative;
+      z-index: 1;
+    }
+    h1 {font-size:1.6rem; margin:0 0 20px;}
+    h2 {margin:0 0 10px;}
+    .card {background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:16px;}
+    .label {display:block; font-size:.85rem; color:var(--muted); margin-bottom:6px;}
+    button {
+      padding:10px 20px; border-radius:10px; border:1px solid var(--border); background:linear-gradient(180deg, var(--accent), #2e6fd1); 
+      color:var(--text); outline:none; cursor:pointer; font-weight:600; margin: 0 8px 8px 0;
+    }
+    button:hover {filter:brightness(1.05);}
+    .row {display:flex; gap:12px; align-items:center; flex-wrap:wrap;}
+    .muted {color:var(--muted); font-size:.9rem;}
+    table {width:100%; border-collapse:separate; border-spacing:0 8px; margin-top:12px;}
+    th {text-align:left; font-weight:600; color:var(--muted); padding:6px 8px;}
+    td {padding:8px 8px; background:#0f1626; border:1px solid var(--border);}
+    .tbl-head {display:flex; align-items:center; justify-content:space-between;}
+    .hidden {display:none;}
+    .err {background:#271317; border:1px solid #7a2f3a; color:#ffb0b9; padding:10px 12px; border-radius:10px; white-space:pre-wrap;}
+    .section-sep {height:1px; background:var(--border); margin:12px 0;}
+    .btn-group {display:flex; gap:12px; margin:16px 0; flex-wrap:wrap;}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h1 style="margin: 0;">Contributions Report</h1>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <a href="{% url 'home' %}" style="color: var(--accent); text-decoration: none; margin-right: 12px;">← Back to Home</a>
+      <span style="color: var(--muted); font-size: 0.9rem;">Welcome, {{ user.username }}</span>
+      <form method="post" action="{% url 'logout' %}" style="margin: 0;">
+        {% csrf_token %}
+        <button type="submit" style="width: auto; padding: 8px 16px; font-size: 0.9rem;">Logout</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="err" class="err hidden"></div>
+
+  <!-- Taxonomy Info -->
+  <div class="card" id="taxonomy-info" style="display:none;">
+    <h3>Feed Formulation Details</h3>
+    <div id="taxonomy-text" class="muted"></div>
+  </div>
+
+  <!-- Export Buttons -->
+  <div class="card">
+    <div class="btn-group">
+      <button id="btn-export-pdf">Export as PDF</button>
+      <button id="btn-export-excel">Export as Excel</button>
+    </div>
+  </div>
+
+  <!-- Mineral Contributions -->
+  <div class="card">
+    <h2>Mineral Contributions</h2>
+    <table id="tbl-mineral">
+      <thead>
+        <tr>
+          <th>Mineral</th>
+          <th style="text-align:right;">%</th>
+          <th style="text-align:right;">Ca (%)</th>
+          <th style="text-align:right;">P (%)</th>
+          <th style="text-align:right;">Lys (%)</th>
+          <th style="text-align:right;">Met (%)</th>
+          <th style="text-align:right;">Salt (%)</th>
+        </tr>
+      </thead>
+      <tbody id="tbl-mineral-body">
+      </tbody>
+    </table>
+  </div>
+
+  <!-- All Ingredient Contributions -->
+  <div class="card">
+    <h2>All Ingredient Contributions</h2>
+    <table id="tbl-ingredient">
+      <thead>
+        <tr>
+          <th>Ingredient</th>
+          <th>Category</th>
+          <th style="text-align:right;">Inclusion %</th>
+          <th style="text-align:right;">ME (kcal/kg)</th>
+          <th style="text-align:right;">CP (%)</th>
+          <th style="text-align:right;">Ca (%)</th>
+          <th style="text-align:right;">P (%)</th>
+          <th style="text-align:right;">Lys (%)</th>
+          <th style="text-align:right;">Met (%)</th>
+          <th style="text-align:right;">Salt (%)</th>
+          <th style="text-align:right;">CF (%)</th>
+        </tr>
+      </thead>
+      <tbody id="tbl-ingredient-body">
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  let formulaData = null;
+
+  function tdRight(text) {
+    const td = document.createElement('td');
+    td.style.textAlign = 'right';
+    td.textContent = text;
+    return td;
+  }
+
+  function loadData() {
+    try {
+      const dataStr = sessionStorage.getItem('feedFormulaData');
+      if (!dataStr) {
+        document.getElementById('err').textContent = 'No data found. Please go back and calculate a formula first.';
+        document.getElementById('err').classList.remove('hidden');
+        return;
+      }
+
+      formulaData = JSON.parse(dataStr);
+
+      // Display taxonomy info
+      const taxonomy = formulaData.taxonomy || {};
+      if (taxonomy.species || taxonomy.subspecies || taxonomy.animal_type || taxonomy.phase) {
+        const taxonomyText = `Species: ${taxonomy.species?.name || 'N/A'} | ` +
+                           `Subspecies: ${taxonomy.subspecies?.name || 'N/A'} | ` +
+                           `Animal Type: ${taxonomy.animal_type?.name || 'N/A'} | ` +
+                           `Phase: ${taxonomy.phase?.name || 'N/A'}`;
+        document.getElementById('taxonomy-text').textContent = taxonomyText;
+        document.getElementById('taxonomy-info').style.display = 'block';
+      }
+
+      // Mineral Contributions
+      const minerals = Array.isArray(formulaData.mineral_contributions) ? formulaData.mineral_contributions : [];
+      const tblMineralBody = document.getElementById('tbl-mineral-body');
+      tblMineralBody.innerHTML = '';
+      
+      if (minerals.length === 0) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td colspan="7" class="muted" style="text-align:center;">No mineral contributions found.</td>';
+        tblMineralBody.appendChild(tr);
+      } else {
+        minerals.forEach(m => {
+          const tr = document.createElement('tr');
+          tr.appendChild(document.createElement('td')).textContent = m.name || '';
+          tr.appendChild(tdRight((m.percent ?? 0).toFixed(4)));
+          tr.appendChild(tdRight((m.Ca ?? 0).toFixed(4)));
+          tr.appendChild(tdRight((m.P ?? 0).toFixed(4)));
+          tr.appendChild(tdRight((m.Lys ?? 0).toFixed(4)));
+          tr.appendChild(tdRight((m.Met ?? 0).toFixed(4)));
+          tr.appendChild(tdRight((m.NaCl ?? 0).toFixed(4)));
+          tblMineralBody.appendChild(tr);
+        });
+      }
+
+      // All Ingredient Contributions
+      const ingredients = Array.isArray(formulaData.ingredient_contributions) ? formulaData.ingredient_contributions : [];
+      const tblIngredientBody = document.getElementById('tbl-ingredient-body');
+      tblIngredientBody.innerHTML = '';
+      
+      if (ingredients.length === 0) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td colspan="11" class="muted" style="text-align:center;">No ingredient contributions found.</td>';
+        tblIngredientBody.appendChild(tr);
+      } else {
+        ingredients.forEach(ing => {
+          const tr = document.createElement('tr');
+          tr.appendChild(document.createElement('td')).textContent = ing.name || '';
+          tr.appendChild(document.createElement('td')).textContent = ing.category || '';
+          tr.appendChild(tdRight((ing.percent ?? 0).toFixed(4)));
+          tr.appendChild(tdRight((ing.ME ?? 0).toFixed(2)));
+          tr.appendChild(tdRight((ing.CP ?? 0).toFixed(4)));
+          tr.appendChild(tdRight((ing.Ca ?? 0).toFixed(4)));
+          tr.appendChild(tdRight((ing.P ?? 0).toFixed(4)));
+          tr.appendChild(tdRight((ing.Lys ?? 0).toFixed(4)));
+          tr.appendChild(tdRight((ing.Met ?? 0).toFixed(4)));
+          tr.appendChild(tdRight((ing.NaCl ?? 0).toFixed(4)));
+          tr.appendChild(tdRight((ing.CF ?? 0).toFixed(4)));
+          tblIngredientBody.appendChild(tr);
+        });
+      }
+
+    } catch (err) {
+      document.getElementById('err').textContent = 'Error loading data: ' + err.message;
+      document.getElementById('err').classList.remove('hidden');
+    }
+  }
+
+  // Export functions
+  document.getElementById('btn-export-pdf').addEventListener('click', () => {
+    if (!formulaData) {
+      alert('No data to export. Please go back and calculate a formula first.');
+      return;
+    }
+    const dataStr = encodeURIComponent(JSON.stringify(formulaData));
+    window.location.href = `{% url 'export_contributions_pdf' %}?data=${dataStr}`;
+  });
+
+  document.getElementById('btn-export-excel').addEventListener('click', () => {
+    if (!formulaData) {
+      alert('No data to export. Please go back and calculate a formula first.');
+      return;
+    }
+    const dataStr = encodeURIComponent(JSON.stringify(formulaData));
+    window.location.href = `{% url 'export_contributions_excel' %}?data=${dataStr}`;
+  });
+
+  // Load data on page load
+  window.addEventListener('DOMContentLoaded', loadData);
+</script>
+</body>
+</html>
+

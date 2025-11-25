@@ -1,0 +1,6 @@
+Django==5.2.7
+psycopg2-binary==2.9.9
+pulp==3.3.0
+reportlab==4.0.7
+openpyxl==3.1.2
+

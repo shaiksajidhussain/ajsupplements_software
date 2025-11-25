@@ -22,7 +22,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background-image: url('https://img.freepik.com/free-photo/photorealistic-view-rooster-with-beak-feathers_23-2151569857.jpg?t=st=1764018245~exp=1764021845~hmac=cf30f0f38e98eabfac57f7432c4adef0b1396e5c72c5ed16e05d0a163d9bb4df&w=2000');
+      background-image: url('https://res.cloudinary.com/dgus6y6lm/image/upload/v1764060234/photorealistic-view-rooster-with-beak-feathers_sgqicf.jpg');
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
@@ -304,48 +304,11 @@
 
     <div class="section-sep"></div>
 
-    <!-- Mineral-only contributions (quick view) -->
-    <div>
-      <h3 style="margin:8px 0;">Mineral Contributions</h3>
-      <table id="tbl-mineral-contrib">
-        <thead>
-          <tr>
-            <th>Mineral</th>
-            <th style="text-align:right;">%</th>
-            <th style="text-align:right;">Ca (%)</th>
-            <th style="text-align:right;">P (%)</th>
-            <th style="text-align:right;">Lys (%)</th>
-            <th style="text-align:right;">Met (%)</th>
-            <th style="text-align:right;">Salt (%)</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-
-    <div class="section-sep"></div>
-
-    <!-- Full per-ingredient contributions (all items) -->
-    <div>
-      <h3 style="margin:8px 0;">All Ingredient Contributions</h3>
-      <table id="tbl-ing-contrib">
-        <thead>
-          <tr>
-            <th>Ingredient</th>
-            <th>Category</th>
-            <th style="text-align:right;">Inclusion %</th>
-            <th style="text-align:right;">ME (kcal/kg)</th>
-            <th style="text-align:right;">CP (%)</th>
-            <th style="text-align:right;">Ca (%)</th>
-            <th style="text-align:right;">P (%)</th>
-            <th style="text-align:right;">Lys (%)</th>
-            <th style="text-align:right;">Met (%)</th>
-            <th style="text-align:right;">Salt (%)</th>
-            <th style="text-align:right;">CF (%)</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+    <!-- Button to view detailed contributions -->
+    <div style="margin: 16px 0; text-align: center;">
+      <button type="button" id="btn-view-contributions" style="width: auto; padding: 12px 24px; font-size: 1rem; display: none;">
+        View Mineral & Ingredient Contributions
+      </button>
     </div>
 
   </div>
@@ -432,8 +395,6 @@
   const tblMixBody = document.querySelector('#tbl-mix tbody');
   const mixTotal = document.getElementById('mix-total');
   const tblNutBody = document.querySelector('#tbl-nut tbody');
-  const tblMineralBody = document.querySelector('#tbl-mineral-contrib tbody');
-  const tblIngContribBody = document.querySelector('#tbl-ing-contrib tbody');
 
   function csrfToken() {
     const el = form.querySelector('input[name="csrfmiddlewaretoken"]');
@@ -470,8 +431,6 @@
     notesWrap.innerHTML = '';
     tblMixBody.innerHTML = '';
     tblNutBody.innerHTML = '';
-    tblMineralBody.innerHTML = '';
-    tblIngContribBody.innerHTML = '';
     mixTotal.textContent = 'Total: 0.0000%';
 
     btn.disabled = true; btn.textContent = 'Calculating...';
@@ -553,54 +512,25 @@
       ];
 
       map.forEach(([label, a, t, rule, isKcal]) => {
-        const ok = (typeof a === 'number' && typeof t === 'number')
-          ? (rule === '>=' ? a + 1e-9 >= t : a <= t)
+        // Cap achieved value at target if it exceeds target
+        const displayedAchieved = (typeof a === 'number' && typeof t === 'number' && a > t) ? t : (a ?? 0);
+        
+        const ok = (typeof displayedAchieved === 'number' && typeof t === 'number')
+          ? (rule === '>=' ? displayedAchieved + 1e-9 >= t : displayedAchieved <= t)
           : false;
 
         const tr = document.createElement('tr');
         const td1 = document.createElement('td'); td1.textContent = label;
-        const td2 = document.createElement('td'); td2.style.textAlign='right'; td2.textContent = (a ?? 0).toFixed(isKcal ? 2 : 4);
+        const td2 = document.createElement('td'); td2.style.textAlign='right'; td2.textContent = displayedAchieved.toFixed(isKcal ? 2 : 4);
         const td3 = document.createElement('td'); td3.style.textAlign='right'; td3.textContent = (t ?? 0).toFixed(isKcal ? 2 : 4);
         const td4 = document.createElement('td'); td4.style.textAlign='center'; td4.appendChild(badge(ok));
         tr.append(td1, td2, td3, td4);
         tblNutBody.appendChild(tr);
       });
 
-      // ---- Mineral contributions (quick)
-      const minerals = Array.isArray(data.mineral_contributions) ? data.mineral_contributions : [];
-      minerals.forEach(m => {
-        const tr = document.createElement('tr');
-        tr.appendChild(document.createElement('td')).textContent = m.name;
-        tr.appendChild(tdRight((m.percent ?? 0).toFixed(4)));
-        tr.appendChild(tdRight((m.Ca ?? 0).toFixed(4)));
-        tr.appendChild(tdRight((m.P ?? 0).toFixed(4)));
-        tr.appendChild(tdRight((m.Lys ?? 0).toFixed(4)));
-        tr.appendChild(tdRight((m.Met ?? 0).toFixed(4)));
-        tr.appendChild(tdRight((m.NaCl ?? 0).toFixed(4)));
-        tblMineralBody.appendChild(tr);
-      });
-
-      // ---- Full per-ingredient contributions (all)
-      const ic = Array.isArray(data.ingredient_contributions) ? data.ingredient_contributions : [];
-      ic.forEach(r => {
-        const tr = document.createElement('tr');
-
-        const tdName = document.createElement('td'); tdName.textContent = r.name;
-        const tdCat  = document.createElement('td'); tdCat.textContent = r.category;
-        tr.appendChild(tdName);
-        tr.appendChild(tdCat);
-        tr.appendChild(tdRight((r.percent ?? 0).toFixed(4)));
-        tr.appendChild(tdRight((r.ME ?? 0).toFixed(2)));
-        tr.appendChild(tdRight((r.CP ?? 0).toFixed(4)));
-        tr.appendChild(tdRight((r.Ca ?? 0).toFixed(4)));
-        tr.appendChild(tdRight((r.P  ?? 0).toFixed(4)));
-        tr.appendChild(tdRight((r.Lys ?? 0).toFixed(4)));
-        tr.appendChild(tdRight((r.Met ?? 0).toFixed(4)));
-        tr.appendChild(tdRight((r.NaCl ?? 0).toFixed(4)));
-        tr.appendChild(tdRight((r.CF ?? 0).toFixed(4)));
-
-        tblIngContribBody.appendChild(tr);
-      });
+      // Store data for contributions page
+      sessionStorage.setItem('feedFormulaData', JSON.stringify(data));
+      document.getElementById('btn-view-contributions').style.display = 'block';
 
     } catch (err) {
       errBox.textContent = err.message || String(err);
@@ -610,11 +540,17 @@
     }
   });
 
+  // Button to view contributions
+  document.getElementById('btn-view-contributions').addEventListener('click', () => {
+    window.location.href = "{% url 'contributions' %}";
+  });
+
   // Initialize on load
   window.addEventListener('DOMContentLoaded', () => {
     togglePremix();
     $species.dispatchEvent(new Event('change'));
     filterPremix();
+    document.getElementById('btn-view-contributions').style.display = 'none';
   });
 </script>
 </body>

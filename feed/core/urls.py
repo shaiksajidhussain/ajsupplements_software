@@ -6,6 +6,9 @@ urlpatterns = [
     path("logout/", views.logout_view, name="logout"),
     path("", views.home, name="home"),
     path("solve/", views.solve_feed_formula, name="solve_feed_formula"),
+    path("contributions/", views.contributions, name="contributions"),
+    path("contributions/export-pdf/", views.export_contributions_pdf, name="export_contributions_pdf"),
+    path("contributions/export-excel/", views.export_contributions_excel, name="export_contributions_excel"),
     # If/when you add a real ingredient list view in views.py, uncomment the next line:
     # path("ingredients/", views.ingredient_list, name="ingredient_list"),
 ]
