@@ -227,6 +227,26 @@ def solve_feed_formula(request):
                 status=400,
             )
         pmx = get_object_or_404(Premix, pk=premix_id)
+        
+        # Get premix percentage from form, or use default from model
+        premix_percentage = request.POST.get("premix_percentage")
+        if premix_percentage and premix_percentage.strip():
+            try:
+                inclusion_rate = float(premix_percentage)
+                if inclusion_rate < 0 or inclusion_rate > 100:
+                    return JsonResponse(
+                        {"status": "error", "message": "Premix percentage must be between 0 and 100."},
+                        status=400,
+                    )
+            except ValueError:
+                return JsonResponse(
+                    {"status": "error", "message": "Invalid premix percentage value."},
+                    status=400,
+                )
+        else:
+            # Use default inclusion rate from model
+            inclusion_rate = float(pmx.inclusion_rate or 0.0)
+        
         premix_row = {
             "id": f"premix:{pmx.id}",
             "name": pmx.name,
@@ -234,8 +254,8 @@ def solve_feed_formula(request):
             "cost": float(pmx.price_per_kg or 0.0),
             "ME": 0.0, "CP": 0.0, "Lys": 0.0, "Met": 0.0,
             "Ca": 0.0, "P": 0.0, "NaCl": 0.0, "CF": 0.0,
-            "min": float(pmx.inclusion_rate or 0.0),
-            "max": float(pmx.inclusion_rate or 0.0),
+            "min": inclusion_rate,
+            "max": inclusion_rate,
         }
 
     # ---- User ingredients

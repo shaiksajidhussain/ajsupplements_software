@@ -118,12 +118,19 @@
                       data-species="{{ pmx.species_id }}"
                       data-subspecies="{{ pmx.subspecies_id }}"
                       data-animaltype="{{ pmx.animal_type_id }}"
-                      data-phase="{{ pmx.phase_id }}">
+                      data-phase="{{ pmx.phase_id }}"
+                      data-inclusion-rate="{{ pmx.inclusion_rate|default:0 }}">
                 {{ pmx.name }}
               </option>
             {% endfor %}
           </select>
           <div class="muted">Filtered to match selected taxonomy/phase if provided</div>
+        </div>
+
+        <div id="premix_percentage_wrap" class="hidden" style="min-width:150px;">
+          <label class="label" for="premix_percentage">Premix %</label>
+          <input type="number" id="premix_percentage" name="premix_percentage" min="0" max="100" step="0.01" placeholder="Auto" />
+          <div class="muted">Override inclusion rate</div>
         </div>
       </div>
     </div>
@@ -305,12 +312,34 @@
   const $usePremix = document.getElementById('use_premix');
   const $premixWrap = document.getElementById('premix_select_wrap');
   const $premix = document.getElementById('premix_id');
+  const $premixPercentageWrap = document.getElementById('premix_percentage_wrap');
+  const $premixPercentage = document.getElementById('premix_percentage');
 
   function togglePremix() {
-    $premixWrap.classList.toggle('hidden', !$usePremix.checked);
-    if (!$usePremix.checked) $premix.selectedIndex = 0;
+    const isChecked = $usePremix.checked;
+    $premixWrap.classList.toggle('hidden', !isChecked);
+    $premixPercentageWrap.classList.toggle('hidden', !isChecked);
+    if (!isChecked) {
+      $premix.selectedIndex = 0;
+      $premixPercentage.value = '';
+    }
   }
   $usePremix.addEventListener('change', togglePremix);
+
+  // Auto-populate premix percentage when premix is selected
+  $premix.addEventListener('change', () => {
+    if ($premix.selectedIndex > 0) {
+      const selectedOption = $premix.options[$premix.selectedIndex];
+      const defaultRate = selectedOption.dataset.inclusionRate || '';
+      if (defaultRate && !$premixPercentage.value) {
+        $premixPercentage.value = defaultRate;
+        $premixPercentage.placeholder = `Default: ${defaultRate}%`;
+      }
+    } else {
+      $premixPercentage.value = '';
+      $premixPercentage.placeholder = 'Auto';
+    }
+  });
 
   function filterPremix() {
     const sid = $species.value, ssid = $subspecies.value, atid = $animalType.value, phid = $phase.value;

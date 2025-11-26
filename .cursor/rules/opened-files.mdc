@@ -5,51 +5,1441 @@ alwaysApply: true
 ---
 # Opened Files
 ## File Name
-.gitignore
+feed/core/home.html
 ## File Content
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>IMT Feed Formulation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --bg:#0b1220; --panel:#121a2b; --muted:#9fb3c8; --text:#e8f0fb; --accent:#59a9ff; --accent2:#7bd389; --border:#22304b; --bad:#ff6b6b; }
+    html,body {margin:0; padding:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans",sans-serif;}
+    .wrap {max-width:1100px; margin:32px auto; padding:0 16px;}
+    h1 {font-size:1.6rem; margin:0 0 20px;}
+    .card {background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:16px;}
+    .grid {display:grid; gap:12px;}
+    .g-2 {grid-template-columns: repeat(2, minmax(0,1fr));}
+    .g-3 {grid-template-columns: repeat(3, minmax(0,1fr));}
+    .label {display:block; font-size:.85rem; color:var(--muted); margin-bottom:6px;}
+    select, input[type="number"], input[type="checkbox"] {accent-color: var(--accent);}
+    select, input[type="number"], button {
+      width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1626; color:var(--text);
+      outline:none;
+    }
+    input[type="number"] { -moz-appearance: textfield; }
+    button {background:linear-gradient(180deg, var(--accent), #2e6fd1); border:none; cursor:pointer; font-weight:600;}
+    button[disabled] {opacity:.7; cursor:not-allowed;}
+    button:hover {filter:brightness(1.05);}
+    .row {display:flex; gap:12px; align-items:center; flex-wrap:wrap;}
+    .muted {color:var(--muted); font-size:.9rem;}
+    table {width:100%; border-collapse:separate; border-spacing:0 8px;}
+    th {text-align:left; font-weight:600; color:var(--muted); padding:6px 8px;}
+    td {padding:8px 8px; background:#0f1626; border:1px solid var(--border);}
+    .tbl-head {display:flex; align-items:center; justify-content:space-between;}
+    .pill {display:inline-block; padding:2px 8px; border-radius:999px; background:#0f213c; border:1px solid var(--border); color:var(--muted); font-size:.8rem;}
+    .hidden {display:none;}
+    .status-pass {background:#0f213c; border:1px solid #214d33; color:#9ee2a8; padding:2px 8px; border-radius:999px; font-size:.8rem;}
+    .status-fail {background:#271317; border:1px solid #7a2f3a; color:#ffb0b9; padding:2px 8px; border-radius:999px; font-size:.8rem;}
+    .err {background:#271317; border:1px solid #7a2f3a; color:#ffb0b9; padding:10px 12px; border-radius:10px; white-space:pre-wrap;}
+    .notes {display:flex; flex-direction:column; gap:6px;}
+    .note {background:#0f213c; border:1px solid var(--border); padding:8px 10px; border-radius:8px; font-size:.9rem; color:#d5e6ff;}
+    .total-line {display:flex; justify-content:flex-end; gap:12px; margin-top:8px; color:var(--muted); font-size:.95rem;}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h1 style="margin: 0;">IMT Feed Formulation</h1>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span style="color: var(--muted); font-size: 0.9rem;">Welcome, {{ user.username }}</span>
+      <form method="post" action="{% url 'logout' %}" style="margin: 0;">
+        {% csrf_token %}
+        <button type="submit" style="width: auto; padding: 8px 16px; font-size: 0.9rem;">Logout</button>
+      </form>
+    </div>
+  </div>
 
-# Django
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-/media
-/staticfiles
+  <form id="form-solve" method="post" action="{% url 'solve_feed_formula' %}">
+    {% csrf_token %}
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
+    <!-- Taxonomy selectors -->
+    <div class="card">
+      <div class="grid g-2">
+        <div>
+          <label class="label" for="species">Species</label>
+          <select id="species" name="species_id" required>
+            <option value="">— Select species —</option>
+            {% for s in species %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+          </select>
+        </div>
 
-# Environment variables
-.env
-.env.local
+        <div>
+          <label class="label" for="subspecies">Subspecies</label>
+          <select id="subspecies" name="subspecies_id" required>
+            <option value="">— Select subspecies —</option>
+            {% for ss in subspecies %}
+              <option value="{{ ss.id }}" data-species="{{ ss.species_id }}">{{ ss.name }}</option>
+            {% endfor %}
+          </select>
+          <div class="muted">Filtered by selected species</div>
+        </div>
 
+        <div>
+          <label class="label" for="animal_type">Animal Type</label>
+          <select id="animal_type" name="animal_type_id" required>
+            <option value="">— Select animal type —</option>
+            {% for at in animal_types %}
+              <option value="{{ at.id }}" data-subspecies="{{ at.subspecies_id }}" data-species="{{ at.subspecies.species_id }}">{{ at.name }}</option>
+            {% endfor %}
+          </select>
+          <div class="muted">Filtered by selected subspecies</div>
+        </div>
+
+        <div>
+          <label class="label" for="phase">Phase</label>
+          <select id="phase" name="phase_id" required>
+            <option value="">— Select phase —</option>
+            {% for ph in phases %}
+              <option value="{{ ph.id }}" data-animaltype="{{ ph.animal_type_id }}" data-subspecies="{{ ph.animal_type.subspecies_id }}" data-species="{{ ph.animal_type.subspecies.species_id }}">{{ ph.name }}</option>
+            {% endfor %}
+          </select>
+          <div class="muted">Filtered by selected animal type</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Premix -->
+    <div class="card">
+      <div class="row">
+        <label class="row" style="gap:8px;">
+          <input type="checkbox" id="use_premix" name="use_premix" />
+          <span>Include premix</span>
+        </label>
+
+        <div id="premix_select_wrap" class="hidden" style="min-width:280px; flex:1;">
+          <label class="label" for="premix_id">Premix</label>
+          <select id="premix_id" name="premix_id">
+            <option value="">— Select premix —</option>
+            {% for pmx in premixes %}
+              <option value="{{ pmx.id }}"
+                      data-species="{{ pmx.species_id }}"
+                      data-subspecies="{{ pmx.subspecies_id }}"
+                      data-animaltype="{{ pmx.animal_type_id }}"
+                      data-phase="{{ pmx.phase_id }}"
+                      data-inclusion-rate="{{ pmx.inclusion_rate|default:0 }}">
+                {{ pmx.name }}
+              </option>
+            {% endfor %}
+          </select>
+          <div class="muted">Filtered to match selected taxonomy/phase if provided</div>
+        </div>
+
+        <div id="premix_percentage_wrap" class="hidden" style="min-width:150px;">
+          <label class="label" for="premix_percentage">Premix %</label>
+          <input type="number" id="premix_percentage" name="premix_percentage" min="0" max="100" step="0.01" placeholder="Auto" />
+          <div class="muted">Override inclusion rate</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Oil options (match view's POST fields) -->
+    <div class="card">
+      <div class="grid g-2">
+        <div>
+          <label class="label" for="oil_price_per_kg">Oil price (₹/kg)</label>
+          <input type="number" id="oil_price_per_kg" name="oil_price_per_kg" min="0" step="0.01" placeholder="e.g. 90" />
+        </div>
+        <div>
+          <label class="label" for="oil_cap_percent">Oil cap (%)</label>
+          <input type="number" id="oil_cap_percent" name="oil_cap_percent" min="0" max="100" step="0.01" placeholder="e.g. 3" />
+        </div>
+      </div>
+      <div class="muted" style="margin-top:6px;">Oil energy is fixed at 7000 kcal/kg (auto-added as an energy candidate).</div>
+    </div>
+
+    <!-- Ingredients table (Protein / Medium / Energy) -->
+    <div class="card">
+      <div class="tbl-head">
+        <div class="pill">Select ingredients (names only). Minerals are excluded here.</div>
+        <div class="muted">Tip: use “Select all” for a quick start, then uncheck as needed.</div>
+      </div>
+
+      <div class="grid g-3" style="margin-top:12px;">
+        <!-- Protein group -->
+        <div>
+          <div class="row" style="justify-content:space-between;">
+            <strong>Protein Sources</strong>
+            <label class="muted"><input type="checkbox" id="select_all_protein" /> Select all</label>
+          </div>
+          <table>
+            <thead><tr><th style="width:44px;">Add</th><th>Name</th></tr></thead>
+            <tbody id="protein_body">
+            {% for ing in ingredients_by_category.protein %}
+              <tr>
+                <td><input type="checkbox" class="chk-protein" name="ingredients" value="{{ ing.id }}" /></td>
+                <td>{{ ing.name }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="2" class="muted">No protein ingredients yet.</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Medium group -->
+        <div>
+          <div class="row" style="justify-content:space-between;">
+            <strong>Medium Sources</strong>
+            <label class="muted"><input type="checkbox" id="select_all_medium" /> Select all</label>
+          </div>
+          <table>
+            <thead><tr><th style="width:44px;">Add</th><th>Name</th></tr></thead>
+            <tbody id="medium_body">
+            {% for ing in ingredients_by_category.medium %}
+              <tr>
+                <td><input type="checkbox" class="chk-medium" name="ingredients" value="{{ ing.id }}" /></td>
+                <td>{{ ing.name }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="2" class="muted">No medium ingredients yet.</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Energy group -->
+        <div>
+          <div class="row" style="justify-content:space-between;">
+            <strong>Energy Sources</strong>
+            <label class="muted"><input type="checkbox" id="select_all_energy" /> Select all</label>
+          </div>
+          <table>
+            <thead><tr><th style="width:44px;">Add</th><th>Name</th></tr></thead>
+            <tbody id="energy_body">
+            {% for ing in ingredients_by_category.energy %}
+              <tr>
+                <td><input type="checkbox" class="chk-energy" name="ingredients" value="{{ ing.id }}" /></td>
+                <td>{{ ing.name }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="2" class="muted">No energy ingredients yet.</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="card">
+      <button id="btn-calc" type="submit">Calculate</button>
+      <div id="err" class="err hidden" style="margin-top:10px;"></div>
+    </div>
+  </form>
+
+  <!-- Results -->
+  <div id="results" class="card hidden">
+    <h2 style="margin-top:0;">Result</h2>
+
+    <div id="notes" class="notes hidden" style="margin-bottom:12px;"></div>
+
+    <div class="grid g-2">
+      <div>
+        <h3 style="margin:8px 0;">Mixture</h3>
+        <table id="tbl-mix">
+          <thead>
+            <tr>
+              <th>Ingredient</th>
+              <th>Category</th>
+              <th style="text-align:right;">%</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="total-line">
+          <div id="mix-total">Total: 0.0000%</div>
+        </div>
+      </div>
+
+      <div>
+        <h3 style="margin:8px 0;">Nutrients</h3>
+        <table id="tbl-nut">
+          <thead>
+            <tr>
+              <th>Nutrient</th>
+              <th style="text-align:right;">Achieved</th>
+              <th style="text-align:right;">Target</th>
+              <th style="text-align:center;">Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // --- Cascading filters for taxonomy dropdowns ---
+  const $species = document.getElementById('species');
+  const $subspecies = document.getElementById('subspecies');
+  const $animalType = document.getElementById('animal_type');
+  const $phase = document.getElementById('phase');
+
+  function filterOptions(selectEl, predicate) {
+    Array.from(selectEl.options).forEach((opt, idx) => {
+      if (idx === 0) return;
+      const show = predicate(opt);
+      opt.hidden = !show;
+      if (!show && opt.selected) opt.selected = false;
+    });
+    const cur = selectEl.selectedOptions[0];
+    if (cur && cur.hidden) selectEl.selectedIndex = 0;
+  }
+
+  $species.addEventListener('change', () => {
+    const sid = $species.value;
+    filterOptions($subspecies, opt => !sid || opt.dataset.species === sid);
+    filterOptions($animalType, opt => !sid || opt.dataset.species === sid);
+    filterOptions($phase, opt => !sid || opt.dataset.species === sid);
+  });
+
+  $subspecies.addEventListener('change', () => {
+    const ssid = $subspecies.value;
+    filterOptions($animalType, opt => !ssid || opt.dataset.subspecies === ssid);
+    filterOptions($phase, opt => !ssid || opt.dataset.subspecies === ssid);
+  });
+
+  $animalType.addEventListener('change', () => {
+    const atid = $animalType.value;
+    filterOptions($phase, opt => !atid || opt.dataset.animaltype === atid);
+  });
+
+  // --- Premix toggle + filtering ---
+  const $usePremix = document.getElementById('use_premix');
+  const $premixWrap = document.getElementById('premix_select_wrap');
+  const $premix = document.getElementById('premix_id');
+  const $premixPercentageWrap = document.getElementById('premix_percentage_wrap');
+  const $premixPercentage = document.getElementById('premix_percentage');
+
+  function togglePremix() {
+    const isChecked = $usePremix.checked;
+    $premixWrap.classList.toggle('hidden', !isChecked);
+    $premixPercentageWrap.classList.toggle('hidden', !isChecked);
+    if (!isChecked) {
+      $premix.selectedIndex = 0;
+      $premixPercentage.value = '';
+    }
+  }
+  $usePremix.addEventListener('change', togglePremix);
+
+  // Auto-populate premix percentage when premix is selected
+  $premix.addEventListener('change', () => {
+    if ($premix.selectedIndex > 0) {
+      const selectedOption = $premix.options[$premix.selectedIndex];
+      const defaultRate = selectedOption.dataset.inclusionRate || '';
+      if (defaultRate && !$premixPercentage.value) {
+        $premixPercentage.value = defaultRate;
+        $premixPercentage.placeholder = `Default: ${defaultRate}%`;
+      }
+    } else {
+      $premixPercentage.value = '';
+      $premixPercentage.placeholder = 'Auto';
+    }
+  });
+
+  function filterPremix() {
+    const sid = $species.value, ssid = $subspecies.value, atid = $animalType.value, phid = $phase.value;
+    Array.from($premix.options).forEach((opt, idx) => {
+      if (idx === 0) return;
+      const okSpecies = !opt.dataset.species || !sid || opt.dataset.species === sid;
+      const okSubspecies = !opt.dataset.subspecies || !ssid || opt.dataset.subspecies === ssid;
+      const okAT = !opt.dataset.animaltype || !atid || opt.dataset.animaltype === atid;
+      const okPhase = !opt.dataset.phase || !phid || opt.dataset.phase === phid;
+      opt.hidden = !(okSpecies && okSubspecies && okAT && okPhase);
+      if (opt.hidden && opt.selected) opt.selected = false;
+    });
+  }
+  [$species, $subspecies, $animalType, $phase].forEach(el => el.addEventListener('change', filterPremix));
+
+  // --- Select all per group ---
+  function bindSelectAll(toggleId, className) {
+    const t = document.getElementById(toggleId);
+    t && t.addEventListener('change', () => {
+      document.querySelectorAll('.' + className).forEach(cb => cb.checked = t.checked);
+    });
+  }
+  bindSelectAll('select_all_protein','chk-protein');
+  bindSelectAll('select_all_medium','chk-medium');
+  bindSelectAll('select_all_energy','chk-energy');
+
+  // --- Submit via AJAX and render result ---
+  const form = document.getElementById('form-solve');
+  const btn = document.getElementById('btn-calc');
+  const errBox = document.getElementById('err');
+  const results = document.getElementById('results');
+  const notesWrap = document.getElementById('notes');
+  const tblMixBody = document.querySelector('#tbl-mix tbody');
+  const mixTotal = document.getElementById('mix-total');
+  const tblNutBody = document.querySelector('#tbl-nut tbody');
+
+  function csrfToken() {
+    const el = form.querySelector('input[name="csrfmiddlewaretoken"]');
+    return el ? el.value : '';
+  }
+
+  function asRow(cells) {
+    const tr = document.createElement('tr');
+    cells.forEach((c, i) => {
+      const td = document.createElement('td');
+      if (i === 2) td.style.textAlign = 'right';
+      td.innerHTML = c;
+      tr.appendChild(td);
+    });
+    return tr;
+  }
+
+  function badge(ok) {
+    const b = document.createElement('span');
+    b.className = ok ? 'status-pass' : 'status-fail';
+    b.textContent = ok ? 'OK' : 'Check';
+    return b;
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errBox.classList.add('hidden');
+    results.classList.add('hidden');
+    notesWrap.classList.add('hidden');
+    notesWrap.innerHTML = '';
+    tblMixBody.innerHTML = '';
+    tblNutBody.innerHTML = '';
+    mixTotal.textContent = 'Total: 0.0000%';
+
+    btn.disabled = true; btn.textContent = 'Calculating...';
+
+    try {
+      const fd = new FormData(form);
+      const res = await fetch(form.action, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrfToken(),
+          'Accept': 'application/json',
+        },
+        body: fd,
+        credentials: 'same-origin'   // send cookies for CSRF
+      });
+
+      let data;
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(text.slice(0, 600));  // show the start of any HTML error page
+      }
+
+      if (!res.ok || data.status !== 'ok') {
+        throw new Error(data.message || 'Failed to compute.');
+      }
+
+      // ---- Render notes (if any)
+      if (Array.isArray(data.notes) && data.notes.length) {
+        notesWrap.classList.remove('hidden');
+        data.notes.forEach(n => {
+          const div = document.createElement('div');
+          div.className = 'note';
+          div.textContent = n;
+          notesWrap.appendChild(div);
+        });
+      }
+
+      // ---- Mixture table
+      const rows = (data.final_formula && data.final_formula.rows) ? data.final_formula.rows : [];
+      let totalPct = 0;
+
+      // Add premix row explicitly if present from backend payload
+      if (data.premix && typeof data.premix.inclusion_rate_percent === 'number') {
+        const p = data.premix.inclusion_rate_percent || 0;
+        if (p > 0) {
+          tblMixBody.appendChild(asRow([
+            `${data.premix.name} (Premix)`,
+            'premix',
+            p.toFixed(4)
+          ]));
+          totalPct += p;
+        }
+      }
+
+      rows.forEach(r => {
+        tblMixBody.appendChild(asRow([
+          r.name,
+          r.category,
+          Number(r.percent || 0).toFixed(4)
+        ]));
+        totalPct += Number(r.percent || 0);
+      });
+      mixTotal.textContent = `Total: ${totalPct.toFixed(4)}%`;
+      results.classList.remove('hidden');
+
+      // ---- Nutrient table
+      const achieved = (data.final_formula && data.final_formula.nutrients_achieved) ? data.final_formula.nutrients_achieved : {};
+      const targets = (data.final_formula && data.final_formula.targets) ? data.final_formula.targets : {};
+
+      const map = [
+        ['Energy (kcal/kg)', achieved.ME_kcal_per_kg, targets.ME_min, '>='],
+        ['Crude Protein (%)', achieved.CP_percent, targets.CP_min, '>='],
+        ['Calcium (%)', achieved.Ca_percent, targets.Ca_min, '>='],
+        ['Phosphorus (%)', achieved.P_percent, targets.P_min, '>='],
+        ['Lysine (%)', achieved.Lys_percent, targets.Lys_min, '>='],
+        ['Methionine (%)', achieved.Met_percent, targets.Met_min, '>='],
+        ['Salt (%)', achieved.NaCl_percent, targets.NaCl_min, '>='],
+      ];
+
+      map.forEach(([label, a, t, rule]) => {
+        // Cap achieved value at target if it exceeds target
+        const displayedAchieved = (typeof a === 'number' && typeof t === 'number' && a > t) ? t : (a ?? 0);
+        
+        const ok = (typeof displayedAchieved === 'number' && typeof t === 'number')
+          ? (rule === '>=' ? displayedAchieved + 1e-9 >= t : displayedAchieved <= t)
+          : false;
+
+        const tr = document.createElement('tr');
+        const td1 = document.createElement('td'); td1.textContent = label;
+        const td2 = document.createElement('td'); td2.style.textAlign='right'; td2.textContent = displayedAchieved.toFixed(label.includes('kcal') ? 2 : 4);
+        const td3 = document.createElement('td'); td3.style.textAlign='right'; td3.textContent = (t ?? 0).toFixed(label.includes('kcal') ? 2 : 4);
+        const td4 = document.createElement('td'); td4.style.textAlign='center'; td4.appendChild(badge(ok));
+        tr.append(td1, td2, td3, td4);
+        tblNutBody.appendChild(tr);
+      });
+
+    } catch (err) {
+      errBox.textContent = err.message || String(err);
+      errBox.classList.remove('hidden');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Calculate';
+    }
+  });
+
+  // Initialize on load
+  window.addEventListener('DOMContentLoaded', () => {
+    togglePremix();
+    $species.dispatchEvent(new Event('change'));
+    filterPremix();
+  });
+</script>
+</body>
+</html>
+
+# Opened Files
+## File Name
+feed/core/templates/home.html
+## File Content
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>IMT Feed Formulation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    :root { --bg:#0b1220; --panel:#121a2b; --muted:#9fb3c8; --text:#e8f0fb; --accent:#59a9ff; --accent2:#7bd389; --border:#22304b; --bad:#ff6b6b; }
+    html,body {
+      margin:0; 
+      padding:0; 
+      /* background:var(--bg);  */
+      color:var(--text); 
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans",sans-serif;
+      position: relative;
+      min-height: 100vh;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: url('https://res.cloudinary.com/dgus6y6lm/image/upload/v1764060234/photorealistic-view-rooster-with-beak-feathers_sgqicf.jpg');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      z-index: -2;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.75);
+      z-index: -1;
+    }
+    .wrap {
+      max-width:1100px; 
+      margin:32px auto; 
+      padding:0 16px;
+      position: relative;
+      z-index: 1;
+    }
+    h1 {font-size:1.6rem; margin:0 0 20px;}
+    h2 {margin:0 0 10px;}
+    .card {background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:16px;}
+    .grid {display:grid; gap:12px;}
+    .g-2 {grid-template-columns: repeat(2, minmax(0,1fr));}
+    .g-3 {grid-template-columns: repeat(3, minmax(0,1fr));}
+    .label {display:block; font-size:.85rem; color:var(--muted); margin-bottom:6px;}
+    select, input[type="number"], input[type="checkbox"] {accent-color: var(--accent);}
+    select, input[type="number"], button {
+      width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1626; color:var(--text);
+      outline:none;
+    }
+    input[type="number"] { -moz-appearance: textfield; }
+    button {background:linear-gradient(180deg, var(--accent), #2e6fd1); border:none; cursor:pointer; font-weight:600;}
+    button[disabled] {opacity:.7; cursor:not-allowed;}
+    button:hover {filter:brightness(1.05);}
+    .row {display:flex; gap:12px; align-items:center; flex-wrap:wrap;}
+    .muted {color:var(--muted); font-size:.9rem;}
+    table {width:100%; border-collapse:separate; border-spacing:0 8px;}
+    th {text-align:left; font-weight:600; color:var(--muted); padding:6px 8px;}
+    td {padding:8px 8px; background:#0f1626; border:1px solid var(--border);}
+    .tbl-head {display:flex; align-items:center; justify-content:space-between;}
+    .pill {display:inline-block; padding:2px 8px; border-radius:999px; background:#0f213c; border:1px solid var(--border); color:var(--muted); font-size:.8rem;}
+    .hidden {display:none;}
+    .status-pass {background:#0f213c; border:1px solid #214d33; color:#9ee2a8; padding:2px 8px; border-radius:999px; font-size:.8rem;}
+    .status-fail {background:#271317; border:1px solid #7a2f3a; color:#ffb0b9; padding:2px 8px; border-radius:999px; font-size:.8rem;}
+    .err {background:#271317; border:1px solid #7a2f3a; color:#ffb0b9; padding:10px 12px; border-radius:10px; white-space:pre-wrap;}
+    .notes {display:flex; flex-direction:column; gap:6px;}
+    .note {background:#0f213c; border:1px solid var(--border); padding:8px 10px; border-radius:8px; font-size:.9rem; color:#d5e6ff;}
+    .total-line {display:flex; justify-content:flex-end; gap:12px; margin-top:8px; color:var(--muted); font-size:.95rem;}
+    .section-sep {height:1px; background:var(--border); margin:12px 0;}
+    .modal {position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:1000;}
+    .modal.hidden {display:none !important;}
+    .modal-content {background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:24px; min-width:300px; max-width:400px;}
+    .modal-btn {width:100%; padding:12px; border-radius:8px; border:none; background:linear-gradient(180deg, var(--accent), #2e6fd1); color:var(--text); font-weight:600; cursor:pointer; margin:0;}
+    .modal-btn:hover {filter:brightness(1.1);}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h1 style="margin: 0;">IMT Feed Formulation</h1>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span style="color: var(--muted); font-size: 0.9rem;">Welcome, {{ user.username }}</span>
+      <form method="post" action="{% url 'logout' %}" style="margin: 0;">
+        {% csrf_token %}
+        <button type="submit" style="width: auto; padding: 8px 16px; font-size: 0.9rem;">Logout</button>
+      </form>
+    </div>
+  </div>
+
+  <form id="form-solve" method="post" action="{% url 'solve_feed_formula' %}">
+    {% csrf_token %}
+
+    <!-- Taxonomy selectors -->
+    <div class="card">
+      <div class="grid g-2">
+        <div>
+          <label class="label" for="species">Species</label>
+          <select id="species" name="species_id" required>
+            <option value="">— Select species —</option>
+            {% for s in species %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="label" for="subspecies">Subspecies</label>
+          <select id="subspecies" name="subspecies_id" required>
+            <option value="">— Select subspecies —</option>
+            {% for ss in subspecies %}
+              <option value="{{ ss.id }}" data-species="{{ ss.species_id }}">{{ ss.name }}</option>
+            {% endfor %}
+          </select>
+          <div class="muted">Filtered by selected species</div>
+        </div>
+
+        <div>
+          <label class="label" for="animal_type">Animal Type</label>
+          <select id="animal_type" name="animal_type_id" required>
+            <option value="">— Select animal type —</option>
+            {% for at in animal_types %}
+              <option value="{{ at.id }}" data-subspecies="{{ at.subspecies_id }}" data-species="{{ at.subspecies.species_id }}">{{ at.name }}</option>
+            {% endfor %}
+          </select>
+          <div class="muted">Filtered by selected subspecies</div>
+        </div>
+
+        <div>
+          <label class="label" for="phase">Phase</label>
+          <select id="phase" name="phase_id" required>
+            <option value="">— Select phase —</option>
+            {% for ph in phases %}
+              <option value="{{ ph.id }}" data-animaltype="{{ ph.animal_type_id }}" data-subspecies="{{ ph.animal_type.subspecies_id }}" data-species="{{ ph.animal_type.subspecies.species_id }}">{{ ph.name }}</option>
+            {% endfor %}
+          </select>
+          <div class="muted">Filtered by selected animal type</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Premix -->
+    <div class="card">
+      <div class="row">
+        <label class="row" style="gap:8px;">
+          <input type="checkbox" id="use_premix" name="use_premix" />
+          <span>Include premix</span>
+        </label>
+
+        <div id="premix_select_wrap" class="hidden" style="min-width:280px; flex:1;">
+          <label class="label" for="premix_id">Premix</label>
+          <select id="premix_id" name="premix_id">
+            <option value="">— Select premix —</option>
+            {% for pmx in premixes %}
+              <option value="{{ pmx.id }}"
+                      data-species="{{ pmx.species_id }}"
+                      data-subspecies="{{ pmx.subspecies_id }}"
+                      data-animaltype="{{ pmx.animal_type_id }}"
+                      data-phase="{{ pmx.phase_id }}"
+                      data-inclusion-rate="{{ pmx.inclusion_rate|default:0 }}">
+                {{ pmx.name }}
+              </option>
+            {% endfor %}
+          </select>
+          <div class="muted">Filtered to match selected taxonomy/phase if provided</div>
+        </div>
+
+        <div id="premix_percentage_wrap" class="hidden" style="min-width:150px;">
+          <label class="label" for="premix_percentage">Premix %</label>
+          <input type="number" id="premix_percentage" name="premix_percentage" min="0" max="100" step="0.01" placeholder="Auto" />
+          <div class="muted">Override inclusion rate</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Oil options (match view's POST fields) -->
+    <div class="card">
+      <div class="grid g-2">
+        <div>
+          <label class="label" for="oil_price_per_kg">Oil price (₹/kg)</label>
+          <input type="number" id="oil_price_per_kg" name="oil_price_per_kg" min="0" step="0.01" placeholder="e.g. 90" />
+        </div>
+        <div>
+          <label class="label" for="oil_cap_percent">Oil cap (%)</label>
+          <input type="number" id="oil_cap_percent" name="oil_cap_percent" min="0" max="100" step="0.01" placeholder="e.g. 3" />
+        </div>
+      </div>
+      <div class="muted" style="margin-top:6px;">Oil energy is fixed at 7000 kcal/kg (auto-added as an energy candidate if you select any energy ingredient).</div>
+    </div>
+
+    <!-- Ingredients table (Protein / Medium / Energy) -->
+    <div class="card">
+      <div class="tbl-head">
+        <div class="pill">Select ingredients (names only). Minerals are auto-handled by solver.</div>
+        <div class="muted">Tip: use “Select all” for a quick start, then uncheck as needed.</div>
+      </div>
+
+      <div class="grid g-3" style="margin-top:12px;">
+        <!-- Protein group -->
+        <div>
+          <div class="row" style="justify-content:space-between;">
+            <strong>Protein Sources</strong>
+            <label class="muted"><input type="checkbox" id="select_all_protein" /> Select all</label>
+          </div>
+          <table>
+            <thead><tr><th style="width:44px;">Add</th><th>Name</th></tr></thead>
+            <tbody id="protein_body">
+            {% for ing in ingredients_by_category.protein %}
+              <tr>
+                <td><input type="checkbox" class="chk-protein" name="ingredients" value="{{ ing.id }}" /></td>
+                <td>{{ ing.name }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="2" class="muted">No protein ingredients yet.</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Medium group -->
+        <div>
+          <div class="row" style="justify-content:space-between;">
+            <strong>Medium Sources</strong>
+            <label class="muted"><input type="checkbox" id="select_all_medium" /> Select all</label>
+          </div>
+          <table>
+            <thead><tr><th style="width:44px;">Add</th><th>Name</th></tr></thead>
+            <tbody id="medium_body">
+            {% for ing in ingredients_by_category.medium %}
+              <tr>
+                <td><input type="checkbox" class="chk-medium" name="ingredients" value="{{ ing.id }}" /></td>
+                <td>{{ ing.name }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="2" class="muted">No medium ingredients yet.</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Energy group -->
+        <div>
+          <div class="row" style="justify-content:space-between;">
+            <strong>Energy Sources</strong>
+            <label class="muted"><input type="checkbox" id="select_all_energy" /> Select all</label>
+          </div>
+          <table>
+            <thead><tr><th style="width:44px;">Add</th><th>Name</th></tr></thead>
+            <tbody id="energy_body">
+            {% for ing in ingredients_by_category.energy %}
+              <tr>
+                <td><input type="checkbox" class="chk-energy" name="ingredients" value="{{ ing.id }}" /></td>
+                <td>{{ ing.name }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="2" class="muted">No energy ingredients yet.</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="card">
+      <button id="btn-calc" type="submit">Calculate</button>
+      <div id="err" class="err hidden" style="margin-top:10px;"></div>
+    </div>
+  </form>
+
+  <!-- Results -->
+  <div id="results" class="card hidden">
+    <h2>Result</h2>
+
+    <div id="notes" class="notes hidden" style="margin-bottom:12px;"></div>
+
+    <div class="grid g-2">
+      <div>
+        <h3 style="margin:8px 0;">Mixture</h3>
+        <table id="tbl-mix">
+          <thead>
+            <tr>
+              <th>Ingredient</th>
+              <th>Category</th>
+              <th style="text-align:right;">%</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="total-line">
+          <div id="mix-total">Total: 0.0000%</div>
+        </div>
+      </div>
+
+      <div>
+        <h3 style="margin:8px 0;">Nutrients</h3>
+        <table id="tbl-nut">
+          <thead>
+            <tr>
+              <th>Nutrient</th>
+              <th style="text-align:right;">Achieved</th>
+              <th style="text-align:right;">Target</th>
+              <th style="text-align:center;">Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section-sep"></div>
+
+    <!-- Button to view detailed contributions -->
+    <div style="margin: 16px 0; text-align: center;">
+      <button type="button" id="btn-view-contributions" style="width: auto; padding: 12px 24px; font-size: 1rem; display: none;">
+        View Mineral & Ingredient Contributions
+      </button>
+    </div>
+
+    <!-- Download button -->
+    <div style="margin: 16px 0; text-align: center;">
+      <button type="button" id="btn-download" style="width: auto; padding: 12px 24px; font-size: 1rem;">Download</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Download Modal -->
+<div id="download-modal" class="modal hidden">
+  <div class="modal-content">
+    <h3 style="margin-top: 0;">Select Download Option</h3>
+    <div id="data-selection" style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px;">
+      <button class="modal-btn" data-option="mixture">Mixture Only</button>
+      <button class="modal-btn" data-option="nutrients">Nutrients Only</button>
+      <button class="modal-btn" data-option="both">Both</button>
+      <button class="modal-btn" data-option="cancel" style="background: var(--muted);">Cancel</button>
+    </div>
+    <div id="format-selection" style="display: none; flex-direction: column; gap: 12px; margin-top: 16px;">
+      <h4 style="margin: 0 0 8px 0;">Select Format:</h4>
+      <button class="modal-btn" data-format="csv">Download as CSV</button>
+      <button class="modal-btn" data-format="pdf">Download as PDF</button>
+      <button class="modal-btn" data-format="back" style="background: var(--muted);">Back</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // --- Cascading filters for taxonomy dropdowns ---
+  const $species = document.getElementById('species');
+  const $subspecies = document.getElementById('subspecies');
+  const $animalType = document.getElementById('animal_type');
+  const $phase = document.getElementById('phase');
+
+  function filterOptions(selectEl, predicate) {
+    Array.from(selectEl.options).forEach((opt, idx) => {
+      if (idx === 0) return;
+      const show = predicate(opt);
+      opt.hidden = !show;
+      if (!show && opt.selected) opt.selected = false;
+    });
+    const cur = selectEl.selectedOptions[0];
+    if (cur && cur.hidden) selectEl.selectedIndex = 0;
+  }
+
+  $species.addEventListener('change', () => {
+    const sid = $species.value;
+    filterOptions($subspecies, opt => !sid || opt.dataset.species === sid);
+    filterOptions($animalType, opt => !sid || opt.dataset.species === sid);
+    filterOptions($phase, opt => !sid || opt.dataset.species === sid);
+  });
+
+  $subspecies.addEventListener('change', () => {
+    const ssid = $subspecies.value;
+    filterOptions($animalType, opt => !ssid || opt.dataset.subspecies === ssid);
+    filterOptions($phase, opt => !ssid || opt.dataset.subspecies === ssid);
+  });
+
+  $animalType.addEventListener('change', () => {
+    const atid = $animalType.value;
+    filterOptions($phase, opt => !atid || opt.dataset.animaltype === atid);
+  });
+
+  // --- Premix toggle + filtering ---
+  const $usePremix = document.getElementById('use_premix');
+  const $premixWrap = document.getElementById('premix_select_wrap');
+  const $premix = document.getElementById('premix_id');
+  const $premixPercentageWrap = document.getElementById('premix_percentage_wrap');
+  const $premixPercentage = document.getElementById('premix_percentage');
+
+  function togglePremix() {
+    const isChecked = $usePremix.checked;
+    $premixWrap.classList.toggle('hidden', !isChecked);
+    $premixPercentageWrap.classList.toggle('hidden', !isChecked);
+    if (!isChecked) {
+      $premix.selectedIndex = 0;
+      $premixPercentage.value = '';
+    }
+  }
+  $usePremix.addEventListener('change', togglePremix);
+
+  // Auto-populate premix percentage when premix is selected
+  $premix.addEventListener('change', () => {
+    if ($premix.selectedIndex > 0) {
+      const selectedOption = $premix.options[$premix.selectedIndex];
+      const defaultRate = selectedOption.dataset.inclusionRate || '';
+      if (defaultRate && !$premixPercentage.value) {
+        $premixPercentage.value = defaultRate;
+        $premixPercentage.placeholder = `Default: ${defaultRate}%`;
+      }
+    } else {
+      $premixPercentage.value = '';
+      $premixPercentage.placeholder = 'Auto';
+    }
+  });
+
+  function filterPremix() {
+    const sid = $species.value, ssid = $subspecies.value, atid = $animalType.value, phid = $phase.value;
+    Array.from($premix.options).forEach((opt, idx) => {
+      if (idx === 0) return;
+      const okSpecies = !opt.dataset.species || !sid || opt.dataset.species === sid;
+      const okSubspecies = !opt.dataset.subspecies || !ssid || opt.dataset.subspecies === ssid;
+      const okAT = !opt.dataset.animaltype || !atid || opt.dataset.animaltype === atid;
+      const okPhase = !opt.dataset.phase || !phid || opt.dataset.phase === phid;
+      opt.hidden = !(okSpecies && okSubspecies && okAT && okPhase);
+      if (opt.hidden && opt.selected) opt.selected = false;
+    });
+  }
+  [$species, $subspecies, $animalType, $phase].forEach(el => el.addEventListener('change', filterPremix));
+
+  // --- Select all per group ---
+  function bindSelectAll(toggleId, className) {
+    const t = document.getElementById(toggleId);
+    t && t.addEventListener('change', () => {
+      document.querySelectorAll('.' + className).forEach(cb => cb.checked = t.checked);
+    });
+  }
+  bindSelectAll('select_all_protein','chk-protein');
+  bindSelectAll('select_all_medium','chk-medium');
+  bindSelectAll('select_all_energy','chk-energy');
+
+  // --- Submit via AJAX and render result ---
+  const form = document.getElementById('form-solve');
+  const btn = document.getElementById('btn-calc');
+  const errBox = document.getElementById('err');
+  const results = document.getElementById('results');
+  const notesWrap = document.getElementById('notes');
+  const tblMixBody = document.querySelector('#tbl-mix tbody');
+  const mixTotal = document.getElementById('mix-total');
+  const tblNutBody = document.querySelector('#tbl-nut tbody');
+
+  function csrfToken() {
+    const el = form.querySelector('input[name="csrfmiddlewaretoken"]');
+    return el ? el.value : '';
+  }
+  function asRow(cells, rightIdx = []) {
+    const tr = document.createElement('tr');
+    cells.forEach((c, i) => {
+      const td = document.createElement('td');
+      if (rightIdx.includes(i)) td.style.textAlign = 'right';
+      td.textContent = c;
+      tr.appendChild(td);
+    });
+    return tr;
+  }
+  function badge(ok) {
+    const b = document.createElement('span');
+    b.className = ok ? 'status-pass' : 'status-fail';
+    b.textContent = ok ? 'OK' : 'Check';
+    return b;
+  }
+  function tdRight(text) {
+    const td = document.createElement('td');
+    td.style.textAlign = 'right';
+    td.textContent = text;
+    return td;
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errBox.classList.add('hidden');
+    results.classList.add('hidden');
+    notesWrap.classList.add('hidden');
+    notesWrap.innerHTML = '';
+    tblMixBody.innerHTML = '';
+    tblNutBody.innerHTML = '';
+    mixTotal.textContent = 'Total: 0.0000%';
+
+    btn.disabled = true; btn.textContent = 'Calculating...';
+
+    try {
+      const fd = new FormData(form);
+      const res = await fetch(form.action, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrfToken(),
+          'Accept': 'application/json',
+        },
+        body: fd,
+        credentials: 'same-origin'
+      });
+
+      let data;
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(text.slice(0, 600));
+      }
+
+      if (!res.ok || data.status !== 'ok') {
+        throw new Error(data.message || 'Failed to compute.');
+      }
+
+      // ---- Notes
+      if (Array.isArray(data.notes) && data.notes.length) {
+        notesWrap.classList.remove('hidden');
+        data.notes.forEach(n => {
+          const div = document.createElement('div');
+          div.className = 'note';
+          div.textContent = n;
+          notesWrap.appendChild(div);
+        });
+      }
+
+      // ---- Mixture
+      const rows = (data.final_formula && data.final_formula.rows) ? data.final_formula.rows : [];
+      let totalPct = 0;
+
+      if (data.premix && typeof data.premix.inclusion_rate_percent === 'number') {
+        const p = data.premix.inclusion_rate_percent || 0;
+        if (p > 0) {
+          tblMixBody.appendChild(asRow([
+            `${data.premix.name} (Premix)`,
+            'premix',
+            p.toFixed(4)
+          ], [2]));
+          totalPct += p;
+        }
+      }
+      rows.forEach(r => {
+        tblMixBody.appendChild(asRow([
+          r.name,
+          r.category,
+          Number(r.percent || 0).toFixed(4)
+        ], [2]));
+        totalPct += Number(r.percent || 0);
+      });
+      mixTotal.textContent = `Total: ${totalPct.toFixed(4)}%`;
+      results.classList.remove('hidden');
+
+      // ---- Nutrient table
+      const achieved = (data.final_formula && data.final_formula.nutrients_achieved) ? data.final_formula.nutrients_achieved : {};
+      const targets = (data.final_formula && data.final_formula.targets) ? data.final_formula.targets : {};
+
+      const map = [
+        ['Energy (kcal/kg)', achieved.ME_kcal_per_kg, targets.ME_min, '>=', true],
+        ['Crude Protein (%)', achieved.CP_percent, targets.CP_min, '>=', false],
+        ['Calcium (%)', achieved.Ca_percent, targets.Ca_min, '>=', false],
+        ['Phosphorus (%)', achieved.P_percent, targets.P_min, '>=', false],
+        ['Lysine (%)', achieved.Lys_percent, targets.Lys_min, '>=', false],
+        ['Methionine (%)', achieved.Met_percent, targets.Met_min, '>=', false],
+        ['Salt (%)', achieved.NaCl_percent, targets.NaCl_min, '>=', false],
+      ];
+
+      map.forEach(([label, a, t, rule, isKcal]) => {
+        // Cap achieved value at target if it exceeds target
+        const displayedAchieved = (typeof a === 'number' && typeof t === 'number' && a > t) ? t : (a ?? 0);
+        
+        const ok = (typeof displayedAchieved === 'number' && typeof t === 'number')
+          ? (rule === '>=' ? displayedAchieved + 1e-9 >= t : displayedAchieved <= t)
+          : false;
+
+        const tr = document.createElement('tr');
+        const td1 = document.createElement('td'); td1.textContent = label;
+        const td2 = document.createElement('td'); td2.style.textAlign='right'; td2.textContent = displayedAchieved.toFixed(isKcal ? 2 : 4);
+        const td3 = document.createElement('td'); td3.style.textAlign='right'; td3.textContent = (t ?? 0).toFixed(isKcal ? 2 : 4);
+        const td4 = document.createElement('td'); td4.style.textAlign='center'; td4.appendChild(badge(ok));
+        tr.append(td1, td2, td3, td4);
+        tblNutBody.appendChild(tr);
+      });
+
+      // Store data for contributions page
+      sessionStorage.setItem('feedFormulaData', JSON.stringify(data));
+      document.getElementById('btn-view-contributions').style.display = 'block';
+
+      // Store data for download
+      currentData = data;
+
+    } catch (err) {
+      errBox.textContent = err.message || String(err);
+      errBox.classList.remove('hidden');
+      currentData = null;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Calculate';
+    }
+  });
+
+  // Button to view contributions
+  document.getElementById('btn-view-contributions').addEventListener('click', () => {
+    window.location.href = "{% url 'contributions' %}";
+  });
+
+  // --- Download functionality ---
+  const btnDownload = document.getElementById('btn-download');
+  const downloadModal = document.getElementById('download-modal');
+  const dataSelection = document.getElementById('data-selection');
+  const formatSelection = document.getElementById('format-selection');
+  let currentData = null; // Store the latest result data
+  let selectedDataType = null; // Store selected data type (mixture/nutrients/both)
+
+  // Download button click handler
+  btnDownload.addEventListener('click', () => {
+    if (!currentData) {
+      alert('No data available to download. Please calculate first.');
+      return;
+    }
+    // Reset modal to first step
+    dataSelection.style.display = 'flex';
+    formatSelection.style.display = 'none';
+    selectedDataType = null;
+    downloadModal.classList.remove('hidden');
+  });
+
+  // Data selection button handlers
+  dataSelection.querySelectorAll('.modal-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const option = e.target.dataset.option;
+      
+      if (option === 'cancel') {
+        downloadModal.classList.add('hidden');
+        return;
+      }
+      
+      // Store selected data type and show format selection
+      selectedDataType = option;
+      dataSelection.style.display = 'none';
+      formatSelection.style.display = 'flex';
+    });
+  });
+
+  // Format selection button handlers - use event delegation
+  formatSelection.addEventListener('click', (e) => {
+    const button = e.target.closest('.modal-btn');
+    if (!button || !button.dataset.format) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const format = button.dataset.format;
+    
+    if (format === 'back') {
+      formatSelection.style.display = 'none';
+      dataSelection.style.display = 'flex';
+      return;
+    }
+    
+    downloadModal.classList.add('hidden');
+    
+    if (format === 'csv') {
+      downloadData(selectedDataType, 'csv');
+    } else if (format === 'pdf') {
+      downloadData(selectedDataType, 'pdf');
+    }
+  });
+
+  // Close modal when clicking outside
+  downloadModal.addEventListener('click', (e) => {
+    if (e.target === downloadModal) {
+      downloadModal.classList.add('hidden');
+    }
+  });
+
+  // Download data function
+  function downloadData(option, format) {
+    if (!currentData) return;
+    
+    if (!format || (format !== 'csv' && format !== 'pdf')) {
+      console.error('Invalid format:', format);
+      alert('Invalid download format. Please try again.');
+      return;
+    }
+
+    const rows = (currentData.final_formula && currentData.final_formula.rows) ? currentData.final_formula.rows : [];
+    const achieved = (currentData.final_formula && currentData.final_formula.nutrients_achieved) ? currentData.final_formula.nutrients_achieved : {};
+    const targets = (currentData.final_formula && currentData.final_formula.targets) ? currentData.final_formula.targets : {};
+
+    if (format === 'csv') {
+      downloadCSV(option, rows, achieved, targets);
+    } else if (format === 'pdf') {
+      downloadPDF(option, rows, achieved, targets);
+    }
+  }
+
+  function downloadCSV(option, rows, achieved, targets) {
+    let csvContent = '';
+    let filename = '';
+
+    if (option === 'mixture' || option === 'both') {
+      csvContent += 'Mixture\n';
+      csvContent += 'Ingredient,Category,%\n';
+      
+      // Add premix if present
+      if (currentData.premix && typeof currentData.premix.inclusion_rate_percent === 'number') {
+        const p = currentData.premix.inclusion_rate_percent || 0;
+        if (p > 0) {
+          csvContent += `"${currentData.premix.name} (Premix)",premix,${p.toFixed(4)}\n`;
+        }
+      }
+
+      rows.forEach(r => {
+        csvContent += `"${r.name}",${r.category},${Number(r.percent || 0).toFixed(4)}\n`;
+      });
+
+      let totalPct = 0;
+      if (currentData.premix && typeof currentData.premix.inclusion_rate_percent === 'number') {
+        totalPct += currentData.premix.inclusion_rate_percent || 0;
+      }
+      rows.forEach(r => {
+        totalPct += Number(r.percent || 0);
+      });
+      csvContent += `Total,,${totalPct.toFixed(4)}\n`;
+      
+      filename = 'mixture.csv';
+    }
+
+    if (option === 'nutrients' || option === 'both') {
+      if (option === 'both') {
+        csvContent += '\n\n';
+      }
+      csvContent += 'Nutrients\n';
+      csvContent += 'Nutrient,Achieved,Target,Status\n';
+
+      const map = [
+        ['Energy (kcal/kg)', achieved.ME_kcal_per_kg, targets.ME_min, '>=', true],
+        ['Crude Protein (%)', achieved.CP_percent, targets.CP_min, '>=', false],
+        ['Calcium (%)', achieved.Ca_percent, targets.Ca_min, '>=', false],
+        ['Phosphorus (%)', achieved.P_percent, targets.P_min, '>=', false],
+        ['Lysine (%)', achieved.Lys_percent, targets.Lys_min, '>=', false],
+        ['Methionine (%)', achieved.Met_percent, targets.Met_min, '>=', false],
+        ['Salt (%)', achieved.NaCl_percent, targets.NaCl_min, '>=', false],
+      ];
+
+      map.forEach(([label, a, t, rule, isKcal]) => {
+        const displayedAchieved = (typeof a === 'number' && typeof t === 'number' && a > t) ? t : (a ?? 0);
+        const ok = (typeof displayedAchieved === 'number' && typeof t === 'number')
+          ? (rule === '>=' ? displayedAchieved + 1e-9 >= t : displayedAchieved <= t)
+          : false;
+        const status = ok ? 'OK' : 'Check';
+        const achievedVal = displayedAchieved.toFixed(isKcal ? 2 : 4);
+        const targetVal = (t ?? 0).toFixed(isKcal ? 2 : 4);
+        csvContent += `"${label}",${achievedVal},${targetVal},${status}\n`;
+      });
+
+      if (option === 'nutrients') {
+        filename = 'nutrients.csv';
+      } else {
+        filename = 'mixture_and_nutrients.csv';
+      }
+    }
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  function downloadPDF(option, rows, achieved, targets) {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+      alert('PDF library not loaded. Please refresh the page and try again.');
+      return;
+    }
+    
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    let yPos = 20;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 14;
+
+    // Title
+    doc.setFontSize(16);
+    doc.text('Feed Formulation Results', pageWidth / 2, yPos, { align: 'center' });
+    yPos += 15;
+
+    // Mixture table
+    if (option === 'mixture' || option === 'both') {
+      doc.setFontSize(14);
+      doc.text('Mixture', margin, yPos);
+      yPos += 10;
+
+      const mixtureData = [];
+      
+      // Add premix if present
+      if (currentData.premix && typeof currentData.premix.inclusion_rate_percent === 'number') {
+        const p = currentData.premix.inclusion_rate_percent || 0;
+        if (p > 0) {
+          mixtureData.push([`${currentData.premix.name} (Premix)`, 'premix', `${p.toFixed(4)}%`]);
+        }
+      }
+
+      rows.forEach(r => {
+        mixtureData.push([r.name, r.category, `${Number(r.percent || 0).toFixed(4)}%`]);
+      });
+
+      let totalPct = 0;
+      if (currentData.premix && typeof currentData.premix.inclusion_rate_percent === 'number') {
+        totalPct += currentData.premix.inclusion_rate_percent || 0;
+      }
+      rows.forEach(r => {
+        totalPct += Number(r.percent || 0);
+      });
+      mixtureData.push(['Total', '', `${totalPct.toFixed(4)}%`]);
+
+      doc.autoTable({
+        startY: yPos,
+        head: [['Ingredient', 'Category', '%']],
+        body: mixtureData,
+        theme: 'striped',
+        headStyles: { fillColor: [89, 169, 255] },
+        margin: { left: margin, right: margin }
+      });
+
+      yPos = doc.lastAutoTable.finalY + 15;
+    }
+
+    // Nutrients table
+    if (option === 'nutrients' || option === 'both') {
+      if (option === 'both') {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFontSize(14);
+      doc.text('Nutrients', margin, yPos);
+      yPos += 10;
+
+      const map = [
+        ['Energy (kcal/kg)', achieved.ME_kcal_per_kg, targets.ME_min, '>=', true],
+        ['Crude Protein (%)', achieved.CP_percent, targets.CP_min, '>=', false],
+        ['Calcium (%)', achieved.Ca_percent, targets.Ca_min, '>=', false],
+        ['Phosphorus (%)', achieved.P_percent, targets.P_min, '>=', false],
+        ['Lysine (%)', achieved.Lys_percent, targets.Lys_min, '>=', false],
+        ['Methionine (%)', achieved.Met_percent, targets.Met_min, '>=', false],
+        ['Salt (%)', achieved.NaCl_percent, targets.NaCl_min, '>=', false],
+      ];
+
+      const nutrientsData = map.map(([label, a, t, rule, isKcal]) => {
+        const displayedAchieved = (typeof a === 'number' && typeof t === 'number' && a > t) ? t : (a ?? 0);
+        const ok = (typeof displayedAchieved === 'number' && typeof t === 'number')
+          ? (rule === '>=' ? displayedAchieved + 1e-9 >= t : displayedAchieved <= t)
+          : false;
+        const status = ok ? 'OK' : 'Check';
+        const achievedVal = displayedAchieved.toFixed(isKcal ? 2 : 4);
+        const targetVal = (t ?? 0).toFixed(isKcal ? 2 : 4);
+        return [label, achievedVal, targetVal, status];
+      });
+
+      doc.autoTable({
+        startY: yPos,
+        head: [['Nutrient', 'Achieved', 'Target', 'Status']],
+        body: nutrientsData,
+        theme: 'striped',
+        headStyles: { fillColor: [89, 169, 255] },
+        margin: { left: margin, right: margin }
+      });
+    }
+
+    // Determine filename
+    let filename = '';
+    if (option === 'mixture') {
+      filename = 'mixture.pdf';
+    } else if (option === 'nutrients') {
+      filename = 'nutrients.pdf';
+    } else {
+      filename = 'mixture_and_nutrients.pdf';
+    }
+
+    doc.save(filename);
+  }
+
+  // Initialize on load
+  window.addEventListener('DOMContentLoaded', () => {
+    togglePremix();
+    $species.dispatchEvent(new Event('change'));
+    filterPremix();
+    document.getElementById('btn-view-contributions').style.display = 'none';
+  });
+</script>
+</body>
+</html>
 
