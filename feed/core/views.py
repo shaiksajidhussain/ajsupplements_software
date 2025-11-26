@@ -280,7 +280,7 @@ def solve_feed_formula(request):
     # ---------------------------
     total_space = 100.0
     has_medium = len(selected_medium) > 0
-    slack_target = 20.0 if has_medium else 10.0
+    slack_target = 20.0 if has_medium else 15.0
 
     medium_rows: List[Dict[str, Any]] = []
     medium_fixed_sum = 0.0
