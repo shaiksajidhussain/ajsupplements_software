@@ -137,6 +137,16 @@
       background: #271317;
       border: 1px solid #7a2f3a;
       color: #ffb0b9;
+      font-weight: 500;
+    }
+    .message.error.trial-expired {
+      background: #3d1a1a;
+      border: 2px solid #ff6b6b;
+      color: #ffb0b9;
+      font-weight: 600;
+      font-size: 1rem;
+      padding: 16px;
+      text-align: center;
     }
     .message.success {
       background: #0f213c;
@@ -160,7 +170,7 @@
       {% if messages %}
         <div class="messages">
           {% for message in messages %}
-            <div class="message {{ message.tags }}">
+            <div class="message {{ message.tags }}{% if 'trial has expired' in message|lower %} trial-expired{% endif %}">
               {{ message }}
             </div>
           {% endfor %}

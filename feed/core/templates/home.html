@@ -893,12 +893,108 @@
     doc.save(filename);
   }
 
-  // Initialize on load
+  // Check trial expiration immediately (before DOM loads)
+  {% if is_trial_expired %}
+  (function() {
+    alert('Your trial has expired. Please contact administrator to upgrade your account.');
+    window.location.href = '{% url "login" %}';
+  })();
+  {% endif %}
+  
+  // Initialize on page load
   window.addEventListener('DOMContentLoaded', () => {
+    // Initialize normal page functionality
     togglePremix();
     $species.dispatchEvent(new Event('change'));
     filterPremix();
     document.getElementById('btn-view-contributions').style.display = 'none';
+    
+    // Check trial expiration periodically
+    {% if trial_end_date %}
+    const trialEndDateStr = '{{ trial_end_date }}';
+    console.log('Trial end date string:', trialEndDateStr);
+    
+    // Parse the date - handle ISO format with timezone
+    const trialEndDate = new Date(trialEndDateStr);
+    console.log('Parsed trial end date:', trialEndDate);
+    console.log('Is valid date?', !isNaN(trialEndDate.getTime()));
+    
+    // Check if date is valid
+    if (isNaN(trialEndDate.getTime())) {
+      console.error('Invalid trial end date format:', trialEndDateStr);
+    } else {
+      let checkInterval = null;
+      let hasExpired = false;
+      let checkFrequency = 5000; // Start with 5 seconds
+      
+      const checkTrialExpiration = () => {
+        // Prevent multiple alerts
+        if (hasExpired) {
+          return true;
+        }
+        
+        const now = new Date();
+        const isExpired = now >= trialEndDate;
+        
+        console.log('Trial check - Now:', now.toISOString(), 'End:', trialEndDate.toISOString(), 'Expired:', isExpired);
+        
+        if (isExpired) {
+          hasExpired = true;
+          console.log('Trial expired! Showing alert...');
+          
+          // Clear any intervals
+          if (checkInterval) {
+            clearInterval(checkInterval);
+            checkInterval = null;
+          }
+          
+          alert('Your trial has expired. Please contact administrator to upgrade your account.');
+          window.location.href = '{% url "login" %}';
+          return true; // Indicate expiration
+        }
+        
+        // Calculate time remaining
+        const timeRemaining = trialEndDate - now;
+        const secondsRemaining = Math.floor(timeRemaining / 1000);
+        const minutesRemaining = Math.floor(timeRemaining / (1000 * 60));
+        const hoursRemaining = Math.floor(minutesRemaining / 60);
+        
+        console.log('Trial still active. Time remaining:', hoursRemaining, 'hours', minutesRemaining % 60, 'minutes', secondsRemaining % 60, 'seconds');
+        
+        // If less than 1 minute remaining, switch to 1-second checks
+        if (secondsRemaining <= 60 && checkFrequency !== 1000) {
+          if (checkInterval) {
+            clearInterval(checkInterval);
+          }
+          checkFrequency = 1000; // 1 second
+          checkInterval = setInterval(checkTrialExpiration, checkFrequency);
+          console.log('Switched to 1-second checks (trial expiring soon)');
+        }
+        // If less than 5 minutes remaining, check every 2 seconds
+        else if (secondsRemaining <= 300 && checkFrequency !== 2000) {
+          if (checkInterval) {
+            clearInterval(checkInterval);
+          }
+          checkFrequency = 2000; // 2 seconds
+          checkInterval = setInterval(checkTrialExpiration, checkFrequency);
+          console.log('Switched to 2-second checks (trial expiring soon)');
+        }
+        
+        return false; // Not expired
+      };
+      
+      // Check immediately on page load
+      const expired = checkTrialExpiration();
+      
+      // Only set up interval if not expired
+      if (!expired) {
+        // Check every 5 seconds initially (more frequent for better detection)
+        checkInterval = setInterval(checkTrialExpiration, checkFrequency);
+      }
+    }
+    {% else %}
+    console.log('No trial end date set - unlimited trial');
+    {% endif %}
   });
 </script>
 </body>

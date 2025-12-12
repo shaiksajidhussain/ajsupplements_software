@@ -8,6 +8,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods, require_POST
 from django.contrib import messages
+from functools import wraps
 import json
 import io
 
@@ -32,6 +33,7 @@ except ImportError:
 from .models import (
     Species, Subspecies, AnimalType, Phase,
     Ingredient, Premix, IngredientInclusionLimit,
+    UserProfile, UserTaxonomyPermission,
 )
 
 try:
@@ -43,6 +45,190 @@ except Exception:
 # -------------------------
 # Helpers
 # -------------------------
+
+def check_trial_and_active(view_func):
+    """Decorator to check if user's trial expired or account is inactive"""
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        if request.user.is_authenticated:
+            if not hasattr(request.user, 'profile'):
+                UserProfile.objects.create(user=request.user, is_trial=True)
+            
+            profile = request.user.profile
+            
+            # Check if account is active
+            if not profile.is_active:
+                logout(request)
+                messages.error(request, 'Your account has been deactivated. Please contact administrator.')
+                return redirect('login')
+            
+            # Check if trial expired
+            if profile.is_trial and profile.is_trial_expired:
+                logout(request)
+                messages.error(request, 'Your trial has expired. Please contact administrator to upgrade your account.')
+                return redirect('login')
+        
+        return view_func(request, *args, **kwargs)
+    return _wrapped_view
+
+
+def _get_user_taxonomy_permissions(user):
+    """Get all taxonomy permissions for a user"""
+    if not user.is_authenticated:
+        return []
+    return list(UserTaxonomyPermission.objects.filter(user=user).select_related(
+        'species', 'subspecies', 'animal_type', 'phase'
+    ))
+
+def _filter_species_by_user(user, queryset):
+    """Filter species based on user permissions"""
+    perms = _get_user_taxonomy_permissions(user)
+    if not perms:
+        return queryset  # No restrictions = all allowed
+    
+    # Get unique species IDs from permissions (None means all allowed)
+    allowed_species_ids = set()
+    has_unrestricted = False
+    
+    for perm in perms:
+        if perm.species is None:
+            has_unrestricted = True
+            break
+        allowed_species_ids.add(perm.species_id)
+    
+    if has_unrestricted:
+        return queryset
+    return queryset.filter(id__in=allowed_species_ids)
+
+def _filter_subspecies_by_user(user, queryset):
+    """Filter subspecies based on user permissions"""
+    perms = _get_user_taxonomy_permissions(user)
+    if not perms:
+        return queryset
+    
+    allowed_ids = set()
+    has_unrestricted = False
+    
+    for perm in perms:
+        if perm.subspecies is None:
+            if perm.species is None:
+                has_unrestricted = True
+                break
+            # If species is set but subspecies is None, allow all subspecies of that species
+            allowed_ids.update(queryset.filter(species=perm.species).values_list('id', flat=True))
+        else:
+            allowed_ids.add(perm.subspecies_id)
+    
+    if has_unrestricted:
+        return queryset
+    return queryset.filter(id__in=allowed_ids)
+
+def _filter_animal_types_by_user(user, queryset):
+    """Filter animal types based on user permissions"""
+    perms = _get_user_taxonomy_permissions(user)
+    if not perms:
+        return queryset
+    
+    allowed_ids = set()
+    has_unrestricted = False
+    
+    for perm in perms:
+        if perm.animal_type is None:
+            if perm.species is None and perm.subspecies is None:
+                has_unrestricted = True
+                break
+            # Filter by species/subspecies if specified
+            qs = queryset
+            if perm.species:
+                qs = qs.filter(subspecies__species=perm.species)
+            if perm.subspecies:
+                qs = qs.filter(subspecies=perm.subspecies)
+            allowed_ids.update(qs.values_list('id', flat=True))
+        else:
+            allowed_ids.add(perm.animal_type_id)
+    
+    if has_unrestricted:
+        return queryset
+    return queryset.filter(id__in=allowed_ids)
+
+def _filter_phases_by_user(user, queryset):
+    """Filter phases based on user permissions"""
+    perms = _get_user_taxonomy_permissions(user)
+    if not perms:
+        return queryset
+    
+    allowed_ids = set()
+    has_unrestricted = False
+    
+    for perm in perms:
+        if perm.phase is None:
+            if perm.species is None and perm.subspecies is None and perm.animal_type is None:
+                has_unrestricted = True
+                break
+            # Filter by taxonomy hierarchy
+            qs = queryset
+            if perm.species:
+                qs = qs.filter(animal_type__subspecies__species=perm.species)
+            if perm.subspecies:
+                qs = qs.filter(animal_type__subspecies=perm.subspecies)
+            if perm.animal_type:
+                qs = qs.filter(animal_type=perm.animal_type)
+            allowed_ids.update(qs.values_list('id', flat=True))
+        else:
+            allowed_ids.add(perm.phase_id)
+    
+    if has_unrestricted:
+        return queryset
+    return queryset.filter(id__in=allowed_ids)
+
+def _filter_premixes_by_user(user, queryset):
+    """Filter premixes based on user permissions"""
+    perms = _get_user_taxonomy_permissions(user)
+    if not perms:
+        return queryset
+    
+    allowed_ids = set()
+    has_unrestricted = False
+    
+    for perm in perms:
+        # Premix filtering is more complex - match by species/subspecies/animal_type/phase
+        if perm.species is None and perm.subspecies is None and perm.animal_type is None and perm.phase is None:
+            has_unrestricted = True
+            break
+        
+        qs = queryset
+        if perm.species:
+            qs = qs.filter(species=perm.species)
+        if perm.subspecies:
+            qs = qs.filter(subspecies=perm.subspecies)
+        if perm.animal_type:
+            qs = qs.filter(animal_type=perm.animal_type)
+        if perm.phase:
+            qs = qs.filter(phase=perm.phase)
+        
+        allowed_ids.update(qs.values_list('id', flat=True))
+    
+    if has_unrestricted:
+        return queryset
+    return queryset.filter(id__in=allowed_ids)
+
+def _check_user_has_access(user, species, subspecies, animal_type, phase):
+    """Check if user has access to specific taxonomy combination"""
+    perms = _get_user_taxonomy_permissions(user)
+    if not perms:
+        return True  # No restrictions = all allowed
+    
+    for perm in perms:
+        # Check if this permission allows access
+        species_ok = perm.species is None or perm.species_id == species.id
+        subspecies_ok = perm.subspecies is None or perm.subspecies_id == subspecies.id
+        animal_type_ok = perm.animal_type is None or perm.animal_type_id == animal_type.id
+        phase_ok = perm.phase is None or perm.phase_id == phase.id
+        
+        if species_ok and subspecies_ok and animal_type_ok and phase_ok:
+            return True
+    
+    return False
 
 def _ingredients_by_category_qs():
     by_cat = {"protein": [], "medium": [], "energy": []}
@@ -90,15 +276,54 @@ def _row_from_ing(ing: Ingredient, limits: Dict[int, float], default_max: float 
 def login_view(request):
     """Login page - redirects to home if already logged in"""
     if request.user.is_authenticated:
+        # Check if trial expired or user inactive, force logout
+        if hasattr(request.user, 'profile'):
+            profile = request.user.profile
+            # Check trial expiration FIRST
+            if profile.is_trial and profile.is_trial_expired:
+                logout(request)
+                # Clear any existing messages
+                storage = messages.get_messages(request)
+                storage.used = True
+                messages.error(request, 'Your trial has expired. Please contact administrator to upgrade your account.')
+                return render(request, 'core/login.html')
+            if not profile.is_active:
+                logout(request)
+                # Clear any existing messages
+                storage = messages.get_messages(request)
+                storage.used = True
+                messages.error(request, 'Your account has been deactivated. Please contact administrator.')
+                return render(request, 'core/login.html')
         return redirect('home')
     
     if request.method == 'POST':
+        # Clear any existing messages first
+        storage = messages.get_messages(request)
+        storage.used = True
+        
         username = request.POST.get('username')
         password = request.POST.get('password')
         
         if username and password:
             user = authenticate(request, username=username, password=password)
             if user is not None:
+                # Check if user has profile, create one if not
+                if not hasattr(user, 'profile'):
+                    UserProfile.objects.create(user=user, is_trial=True)
+                
+                profile = user.profile
+                
+                # Check if trial expired FIRST (most important check)
+                if profile.is_trial and profile.is_trial_expired:
+                    messages.error(request, 'Your trial has expired. Please contact administrator to upgrade your account.')
+                    return render(request, 'core/login.html')
+                
+                # Check if account is active
+                if not profile.is_active:
+                    messages.error(request, 'Your account has been deactivated. Please contact administrator.')
+                    return render(request, 'core/login.html')
+                
+                # All checks passed, allow login
                 login(request, user)
                 messages.success(request, f'Welcome back, {user.username}!')
                 next_url = request.GET.get('next', 'home')
@@ -125,28 +350,50 @@ def logout_view(request):
 # -------------------------
 
 @login_required
+@check_trial_and_active
 @require_http_methods(["GET"])
 def home(request):
+    # Get user profile (decorator ensures it exists and is valid)
+    profile = request.user.profile
+    
+    # Filter taxonomy based on user permissions
+    species_qs = Species.objects.all().order_by("name")
+    subspecies_qs = Subspecies.objects.select_related("species").order_by("species__name", "name")
+    animal_types_qs = AnimalType.objects.select_related("subspecies", "subspecies__species").order_by(
+        "subspecies__species__name", "subspecies__name", "name"
+    )
+    phases_qs = Phase.objects.select_related(
+        "animal_type", "animal_type__subspecies", "animal_type__subspecies__species"
+    ).order_by(
+        "animal_type__subspecies__species__name",
+        "animal_type__subspecies__name",
+        "animal_type__name", "name",
+    )
+    premixes_qs = Premix.objects.select_related("species", "subspecies", "animal_type", "phase").order_by(
+        "species__name", "name"
+    )
+    
+    # Format trial_end_date for JavaScript
+    trial_end_date_js = None
+    if profile.trial_end_date:
+        trial_end_date_js = profile.trial_end_date.isoformat()
+    
     context = {
-        "species": Species.objects.all().order_by("name"),
-        "subspecies": Subspecies.objects.select_related("species").order_by("species__name", "name"),
-        "animal_types": AnimalType.objects.select_related("subspecies", "subspecies__species")
-            .order_by("subspecies__species__name", "subspecies__name", "name"),
-        "phases": Phase.objects.select_related(
-            "animal_type", "animal_type__subspecies", "animal_type__subspecies__species"
-        ).order_by(
-            "animal_type__subspecies__species__name",
-            "animal_type__subspecies__name",
-            "animal_type__name", "name",
-        ),
-        "premixes": Premix.objects.select_related("species", "subspecies", "animal_type", "phase")
-            .order_by("species__name", "name"),
+        "species": _filter_species_by_user(request.user, species_qs),
+        "subspecies": _filter_subspecies_by_user(request.user, subspecies_qs),
+        "animal_types": _filter_animal_types_by_user(request.user, animal_types_qs),
+        "phases": _filter_phases_by_user(request.user, phases_qs),
+        "premixes": _filter_premixes_by_user(request.user, premixes_qs),
         "ingredients_by_category": _ingredients_by_category_qs(),
+        "user_profile": profile,
+        "is_trial_expired": profile.is_trial and profile.is_trial_expired,
+        "trial_end_date": trial_end_date_js,
     }
     return render(request, "home.html", context)
 
 
 @login_required
+@check_trial_and_active
 @require_POST
 def solve_feed_formula(request):
     """
@@ -190,6 +437,13 @@ def solve_feed_formula(request):
     subspecies = get_object_or_404(Subspecies, pk=subspecies_id, species=species)
     animal_type = get_object_or_404(AnimalType, pk=animal_type_id, subspecies=subspecies)
     phase = get_object_or_404(Phase, pk=phase_id, animal_type=animal_type)
+    
+    # Check if user has access to this taxonomy combination
+    if not _check_user_has_access(request.user, species, subspecies, animal_type, phase):
+        return JsonResponse(
+            {"status": "error", "message": "You do not have permission to access this species/subspecies/animal type/phase combination."},
+            status=403,
+        )
 
     # ---- Phase targets
     targets = {
@@ -1018,6 +1272,7 @@ def solve_feed_formula(request):
 
 
 @login_required
+@check_trial_and_active
 @require_http_methods(["GET"])
 def contributions(request):
     """Display mineral and ingredient contributions page"""
@@ -1025,6 +1280,7 @@ def contributions(request):
 
 
 @login_required
+@check_trial_and_active
 @require_http_methods(["GET"])
 def export_contributions_pdf(request):
     """Export contributions as PDF"""
@@ -1141,6 +1397,7 @@ def export_contributions_pdf(request):
 
 
 @login_required
+@check_trial_and_active
 @require_http_methods(["GET"])
 def export_contributions_excel(request):
     """Export contributions as Excel"""
